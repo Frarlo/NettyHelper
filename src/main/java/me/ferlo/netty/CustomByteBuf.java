@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.DecoderException;
 import io.netty.util.ByteProcessor;
+import io.netty.util.Recycler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,17 +19,29 @@ import java.nio.charset.StandardCharsets;
 
 public class CustomByteBuf extends ByteBuf {
 
-    private static final ThreadLocal<CustomByteBuf> INSTANCE = ThreadLocal.withInitial(CustomByteBuf::new);
+    private static final Recycler<CustomByteBuf> RECYCLER = new Recycler<CustomByteBuf>() {
+        protected CustomByteBuf newObject(Recycler.Handle<CustomByteBuf> handle) {
+            return new CustomByteBuf(handle);
+        }
+    };
 
-    private CustomByteBuf() {}
+    private CustomByteBuf(Recycler.Handle<CustomByteBuf> handle) {
+        this.handle = handle;
+    }
 
     public static CustomByteBuf get(ByteBuf wrapped) {
-        final CustomByteBuf buff = INSTANCE.get();
+        final CustomByteBuf buff = RECYCLER.get();
         buff.wrapped = wrapped;
         return buff;
     }
 
+    private final Recycler.Handle<CustomByteBuf> handle;
     private ByteBuf wrapped;
+
+    public void recycle() {
+        wrapped = null;
+        handle.recycle(this);
+    }
 
     /**
      * Write the given UTF-8 string in the buffer
@@ -101,8 +114,9 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf capacity(int newCapacity) {
-        return wrapped.capacity(newCapacity);
+    public CustomByteBuf capacity(int newCapacity) {
+        wrapped.capacity(newCapacity);
+        return this;
     }
 
     @Override
@@ -123,8 +137,8 @@ public class CustomByteBuf extends ByteBuf {
 
     @Override
     @Deprecated
-    public ByteBuf order(ByteOrder endianness) {
-        return wrapped.order(endianness);
+    public CustomByteBuf order(ByteOrder endianness) {
+        return CustomByteBuf.get(wrapped.order(endianness));
     }
 
     @Override
@@ -143,8 +157,8 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf asReadOnly() {
-        return wrapped.asReadOnly();
+    public CustomByteBuf asReadOnly() {
+        return CustomByteBuf.get(wrapped.asReadOnly());
     }
 
     @Override
@@ -153,8 +167,9 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf readerIndex(int readerIndex) {
-        return wrapped.readerIndex(readerIndex);
+    public CustomByteBuf readerIndex(int readerIndex) {
+        wrapped.readerIndex(readerIndex);
+        return this;
     }
 
     @Override
@@ -163,13 +178,15 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf writerIndex(int writerIndex) {
-        return wrapped.writerIndex(writerIndex);
+    public CustomByteBuf writerIndex(int writerIndex) {
+        wrapped.writerIndex(writerIndex);
+        return this;
     }
 
     @Override
-    public ByteBuf setIndex(int readerIndex, int writerIndex) {
-        return wrapped.setIndex(readerIndex, writerIndex);
+    public CustomByteBuf setIndex(int readerIndex, int writerIndex) {
+        wrapped.setIndex(readerIndex, writerIndex);
+        return this;
     }
 
     @Override
@@ -208,43 +225,51 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf clear() {
-        return wrapped.clear();
+    public CustomByteBuf clear() {
+        wrapped.clear();
+        return this;
     }
 
     @Override
-    public ByteBuf markReaderIndex() {
-        return wrapped.markReaderIndex();
+    public CustomByteBuf markReaderIndex() {
+        wrapped.markReaderIndex();
+        return this;
     }
 
     @Override
-    public ByteBuf resetReaderIndex() {
-        return wrapped.resetReaderIndex();
+    public CustomByteBuf resetReaderIndex() {
+        wrapped.resetReaderIndex();
+        return this;
     }
 
     @Override
-    public ByteBuf markWriterIndex() {
-        return wrapped.markWriterIndex();
+    public CustomByteBuf markWriterIndex() {
+        wrapped.markWriterIndex();
+        return this;
     }
 
     @Override
-    public ByteBuf resetWriterIndex() {
-        return wrapped.resetWriterIndex();
+    public CustomByteBuf resetWriterIndex() {
+        wrapped.resetWriterIndex();
+        return this;
     }
 
     @Override
-    public ByteBuf discardReadBytes() {
-        return wrapped.discardReadBytes();
+    public CustomByteBuf discardReadBytes() {
+        wrapped.discardReadBytes();
+        return this;
     }
 
     @Override
-    public ByteBuf discardSomeReadBytes() {
-        return wrapped.discardSomeReadBytes();
+    public CustomByteBuf discardSomeReadBytes() {
+        wrapped.discardSomeReadBytes();
+        return this;
     }
 
     @Override
-    public ByteBuf ensureWritable(int minWritableBytes) {
-        return wrapped.ensureWritable(minWritableBytes);
+    public CustomByteBuf ensureWritable(int minWritableBytes) {
+        wrapped.ensureWritable(minWritableBytes);
+        return this;
     }
 
     @Override
@@ -363,38 +388,47 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf getBytes(int index, ByteBuf dst) {
-        return wrapped.getBytes(index, dst);
+    public CustomByteBuf getBytes(int index, ByteBuf dst) {
+        final ByteBuf res = wrapped.getBytes(index, dst);
+        if(res instanceof CustomByteBuf)
+            return (CustomByteBuf) res;
+        return CustomByteBuf.get(res);
     }
 
     @Override
-    public ByteBuf getBytes(int index, ByteBuf dst, int length) {
-        return wrapped.getBytes(index, dst, length);
+    public CustomByteBuf getBytes(int index, ByteBuf dst, int length) {
+        final ByteBuf res = wrapped.getBytes(index, dst, length);
+        if(res instanceof CustomByteBuf)
+            return (CustomByteBuf) res;
+        return CustomByteBuf.get(res);
     }
 
     @Override
-    public ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
-        return wrapped.getBytes(index, dst, dstIndex, length);
+    public CustomByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
+        final ByteBuf res = wrapped.getBytes(index, dst, dstIndex, length);
+        if(res instanceof CustomByteBuf)
+            return (CustomByteBuf) res;
+        return CustomByteBuf.get(res);
     }
 
     @Override
-    public ByteBuf getBytes(int index, byte[] dst) {
-        return wrapped.getBytes(index, dst);
+    public CustomByteBuf getBytes(int index, byte[] dst) {
+        return CustomByteBuf.get(wrapped.getBytes(index, dst));
     }
 
     @Override
-    public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
-        return wrapped.getBytes(index, dst, dstIndex, length);
+    public CustomByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
+        return CustomByteBuf.get(wrapped.getBytes(index, dst, dstIndex, length));
     }
 
     @Override
-    public ByteBuf getBytes(int index, ByteBuffer dst) {
-        return wrapped.getBytes(index, dst);
+    public CustomByteBuf getBytes(int index, ByteBuffer dst) {
+        return CustomByteBuf.get(wrapped.getBytes(index, dst));
     }
 
     @Override
-    public ByteBuf getBytes(int index, OutputStream out, int length) throws IOException {
-        return wrapped.getBytes(index, out, length);
+    public CustomByteBuf getBytes(int index, OutputStream out, int length) throws IOException {
+        return CustomByteBuf.get(wrapped.getBytes(index, out, length));
     }
 
     @Override
@@ -413,108 +447,129 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf setBoolean(int index, boolean value) {
-        return wrapped.setBoolean(index, value);
+    public CustomByteBuf setBoolean(int index, boolean value) {
+        wrapped.setBoolean(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setByte(int index, int value) {
-        return wrapped.setByte(index, value);
+    public CustomByteBuf setByte(int index, int value) {
+        wrapped.setByte(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setShort(int index, int value) {
-        return wrapped.setShort(index, value);
+    public CustomByteBuf setShort(int index, int value) {
+        wrapped.setShort(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setShortLE(int index, int value) {
-        return wrapped.setShortLE(index, value);
+    public CustomByteBuf setShortLE(int index, int value) {
+        wrapped.setShortLE(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setMedium(int index, int value) {
-        return wrapped.setMedium(index, value);
+    public CustomByteBuf setMedium(int index, int value) {
+        wrapped.setMedium(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setMediumLE(int index, int value) {
-        return wrapped.setMediumLE(index, value);
+    public CustomByteBuf setMediumLE(int index, int value) {
+        wrapped.setMediumLE(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setInt(int index, int value) {
-        return wrapped.setInt(index, value);
+    public CustomByteBuf setInt(int index, int value) {
+        wrapped.setInt(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setIntLE(int index, int value) {
-        return wrapped.setIntLE(index, value);
+    public CustomByteBuf setIntLE(int index, int value) {
+        wrapped.setIntLE(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setLong(int index, long value) {
-        return wrapped.setLong(index, value);
+    public CustomByteBuf setLong(int index, long value) {
+        wrapped.setLong(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setLongLE(int index, long value) {
-        return wrapped.setLongLE(index, value);
+    public CustomByteBuf setLongLE(int index, long value) {
+        wrapped.setLongLE(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setChar(int index, int value) {
-        return wrapped.setChar(index, value);
+    public CustomByteBuf setChar(int index, int value) {
+        wrapped.setChar(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setFloat(int index, float value) {
-        return wrapped.setFloat(index, value);
+    public CustomByteBuf setFloat(int index, float value) {
+        wrapped.setFloat(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setFloatLE(int index, float value) {
-        return wrapped.setFloatLE(index, value);
+    public CustomByteBuf setFloatLE(int index, float value) {
+        wrapped.setFloatLE(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setDouble(int index, double value) {
-        return wrapped.setDouble(index, value);
+    public CustomByteBuf setDouble(int index, double value) {
+        wrapped.setDouble(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setDoubleLE(int index, double value) {
-        return wrapped.setDoubleLE(index, value);
+    public CustomByteBuf setDoubleLE(int index, double value) {
+        wrapped.setDoubleLE(index, value);
+        return this;
     }
 
     @Override
-    public ByteBuf setBytes(int index, ByteBuf src) {
-        return wrapped.setBytes(index, src);
+    public CustomByteBuf setBytes(int index, ByteBuf src) {
+        wrapped.setBytes(index, src);
+        return this;
     }
 
     @Override
-    public ByteBuf setBytes(int index, ByteBuf src, int length) {
-        return wrapped.setBytes(index, src, length);
+    public CustomByteBuf setBytes(int index, ByteBuf src, int length) {
+        wrapped.setBytes(index, src, length);
+        return this;
     }
 
     @Override
-    public ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
-        return wrapped.setBytes(index, src, srcIndex, length);
+    public CustomByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
+        wrapped.setBytes(index, src, srcIndex, length);
+        return this;
     }
 
     @Override
-    public ByteBuf setBytes(int index, byte[] src) {
-        return wrapped.setBytes(index, src);
+    public CustomByteBuf setBytes(int index, byte[] src) {
+        wrapped.setBytes(index, src);
+        return this;
     }
 
     @Override
-    public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
-        return wrapped.setBytes(index, src, srcIndex, length);
+    public CustomByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
+        wrapped.setBytes(index, src, srcIndex, length);
+        return this;
     }
 
     @Override
-    public ByteBuf setBytes(int index, ByteBuffer src) {
-        return wrapped.setBytes(index, src);
+    public CustomByteBuf setBytes(int index, ByteBuffer src) {
+        wrapped.setBytes(index, src);
+        return this;
     }
 
     @Override
@@ -533,8 +588,9 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf setZero(int index, int length) {
-        return wrapped.setZero(index, length);
+    public CustomByteBuf setZero(int index, int length) {
+        wrapped.setZero(index, length);
+        return this;
     }
 
     @Override
@@ -653,53 +709,60 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf readBytes(int length) {
-        return wrapped.readBytes(length);
+    public CustomByteBuf readBytes(int length) {
+        return CustomByteBuf.get(wrapped.readBytes(length));
     }
 
     @Override
-    public ByteBuf readSlice(int length) {
-        return wrapped.readSlice(length);
+    public CustomByteBuf readSlice(int length) {
+        return CustomByteBuf.get(wrapped.readSlice(length));
     }
 
     @Override
-    public ByteBuf readRetainedSlice(int length) {
-        return wrapped.readRetainedSlice(length);
+    public CustomByteBuf readRetainedSlice(int length) {
+        return CustomByteBuf.get(wrapped.readRetainedSlice(length));
     }
 
     @Override
-    public ByteBuf readBytes(ByteBuf dst) {
-        return wrapped.readBytes(dst);
+    public CustomByteBuf readBytes(ByteBuf dst) {
+        wrapped.readBytes(dst);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(ByteBuf dst, int length) {
-        return wrapped.readBytes(dst, length);
+    public CustomByteBuf readBytes(ByteBuf dst, int length) {
+        wrapped.readBytes(dst, length);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(ByteBuf dst, int dstIndex, int length) {
-        return wrapped.readBytes(dst, dstIndex, length);
+    public CustomByteBuf readBytes(ByteBuf dst, int dstIndex, int length) {
+        wrapped.readBytes(dst, dstIndex, length);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(byte[] dst) {
-        return wrapped.readBytes(dst);
+    public CustomByteBuf readBytes(byte[] dst) {
+        wrapped.readBytes(dst);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(byte[] dst, int dstIndex, int length) {
-        return wrapped.readBytes(dst, dstIndex, length);
+    public CustomByteBuf readBytes(byte[] dst, int dstIndex, int length) {
+        wrapped.readBytes(dst, dstIndex, length);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(ByteBuffer dst) {
-        return wrapped.readBytes(dst);
+    public CustomByteBuf readBytes(ByteBuffer dst) {
+        wrapped.readBytes(dst);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(OutputStream out, int length) throws IOException {
-        return wrapped.readBytes(out, length);
+    public CustomByteBuf readBytes(OutputStream out, int length) throws IOException {
+        wrapped.readBytes(out, length);
+        return this;
     }
 
     @Override
@@ -718,113 +781,135 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf skipBytes(int length) {
-        return wrapped.skipBytes(length);
+    public CustomByteBuf skipBytes(int length) {
+        wrapped.skipBytes(length);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBoolean(boolean value) {
-        return wrapped.writeBoolean(value);
+    public CustomByteBuf writeBoolean(boolean value) {
+        wrapped.writeBoolean(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeByte(int value) {
-        return wrapped.writeByte(value);
+    public CustomByteBuf writeByte(int value) {
+        wrapped.writeByte(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeShort(int value) {
-        return wrapped.writeShort(value);
+    public CustomByteBuf writeShort(int value) {
+        wrapped.writeShort(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeShortLE(int value) {
-        return wrapped.writeShortLE(value);
+    public CustomByteBuf writeShortLE(int value) {
+        wrapped.writeShortLE(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeMedium(int value) {
-        return wrapped.writeMedium(value);
+    public CustomByteBuf writeMedium(int value) {
+        wrapped.writeMedium(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeMediumLE(int value) {
-        return wrapped.writeMediumLE(value);
+    public CustomByteBuf writeMediumLE(int value) {
+        wrapped.writeMediumLE(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeInt(int value) {
-        return wrapped.writeInt(value);
+    public CustomByteBuf writeInt(int value) {
+        wrapped.writeInt(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeIntLE(int value) {
-        return wrapped.writeIntLE(value);
+    public CustomByteBuf writeIntLE(int value) {
+        wrapped.writeIntLE(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeLong(long value) {
-        return wrapped.writeLong(value);
+    public CustomByteBuf writeLong(long value) {
+        wrapped.writeLong(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeLongLE(long value) {
-        return wrapped.writeLongLE(value);
+    public CustomByteBuf writeLongLE(long value) {
+        wrapped.writeLongLE(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeChar(int value) {
-        return wrapped.writeChar(value);
+    public CustomByteBuf writeChar(int value) {
+        wrapped.writeChar(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeFloat(float value) {
-        return wrapped.writeFloat(value);
+    public CustomByteBuf writeFloat(float value) {
+        wrapped.writeFloat(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeFloatLE(float value) {
-        return wrapped.writeFloatLE(value);
+    public CustomByteBuf writeFloatLE(float value) {
+        wrapped.writeFloatLE(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeDouble(double value) {
-        return wrapped.writeDouble(value);
+    public CustomByteBuf writeDouble(double value) {
+        wrapped.writeDouble(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeDoubleLE(double value) {
-        return wrapped.writeDoubleLE(value);
+    public CustomByteBuf writeDoubleLE(double value) {
+        wrapped.writeDoubleLE(value);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBytes(ByteBuf src) {
-        return wrapped.writeBytes(src);
+    public CustomByteBuf writeBytes(ByteBuf src) {
+        wrapped.writeBytes(src);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBytes(ByteBuf src, int length) {
-        return wrapped.writeBytes(src, length);
+    public CustomByteBuf writeBytes(ByteBuf src, int length) {
+        wrapped.writeBytes(src, length);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
-        return wrapped.writeBytes(src, srcIndex, length);
+    public CustomByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
+        wrapped.writeBytes(src, srcIndex, length);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBytes(byte[] src) {
-        return wrapped.writeBytes(src);
+    public CustomByteBuf writeBytes(byte[] src) {
+        wrapped.writeBytes(src);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBytes(byte[] src, int srcIndex, int length) {
-        return wrapped.writeBytes(src, srcIndex, length);
+    public CustomByteBuf writeBytes(byte[] src, int srcIndex, int length) {
+        wrapped.writeBytes(src, srcIndex, length);
+        return this;
     }
 
     @Override
-    public ByteBuf writeBytes(ByteBuffer src) {
-        return wrapped.writeBytes(src);
+    public CustomByteBuf writeBytes(ByteBuffer src) {
+        wrapped.writeBytes(src);
+        return this;
     }
 
     @Override
@@ -843,8 +928,9 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf writeZero(int length) {
-        return wrapped.writeZero(length);
+    public CustomByteBuf writeZero(int length) {
+        wrapped.writeZero(length);
+        return this;
     }
 
     @Override
@@ -893,43 +979,43 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf copy() {
-        return wrapped.copy();
+    public CustomByteBuf copy() {
+        return CustomByteBuf.get(wrapped.copy());
     }
 
     @Override
-    public ByteBuf copy(int index, int length) {
-        return wrapped.copy(index, length);
+    public CustomByteBuf copy(int index, int length) {
+        return CustomByteBuf.get(wrapped.copy(index, length));
     }
 
     @Override
-    public ByteBuf slice() {
-        return wrapped.slice();
+    public CustomByteBuf slice() {
+        return CustomByteBuf.get(wrapped.slice());
     }
 
     @Override
-    public ByteBuf retainedSlice() {
-        return wrapped.retainedSlice();
+    public CustomByteBuf retainedSlice() {
+        return CustomByteBuf.get(wrapped.retainedSlice());
     }
 
     @Override
-    public ByteBuf slice(int index, int length) {
-        return wrapped.slice(index, length);
+    public CustomByteBuf slice(int index, int length) {
+        return CustomByteBuf.get(wrapped.slice(index, length));
     }
 
     @Override
-    public ByteBuf retainedSlice(int index, int length) {
-        return wrapped.retainedSlice(index, length);
+    public CustomByteBuf retainedSlice(int index, int length) {
+        return CustomByteBuf.get(wrapped.retainedSlice(index, length));
     }
 
     @Override
-    public ByteBuf duplicate() {
-        return wrapped.duplicate();
+    public CustomByteBuf duplicate() {
+        return CustomByteBuf.get(wrapped.duplicate());
     }
 
     @Override
-    public ByteBuf retainedDuplicate() {
-        return wrapped.retainedDuplicate();
+    public CustomByteBuf retainedDuplicate() {
+        return CustomByteBuf.get(wrapped.retainedDuplicate());
     }
 
     @Override
@@ -1003,6 +1089,7 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
+    @SuppressWarnings("EqualsWhichDoesntCheckParameterClass")
     public boolean equals(Object obj) {
         return wrapped.equals(obj);
     }
@@ -1018,23 +1105,27 @@ public class CustomByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf retain(int increment) {
-        return wrapped.retain(increment);
+    public CustomByteBuf retain(int increment) {
+        wrapped.retain(increment);
+        return this;
     }
 
     @Override
-    public ByteBuf retain() {
-        return wrapped.retain();
+    public CustomByteBuf retain() {
+        wrapped.retain();
+        return this;
     }
 
     @Override
-    public ByteBuf touch() {
-        return wrapped.touch();
+    public CustomByteBuf touch() {
+        wrapped.touch();
+        return this;
     }
 
     @Override
-    public ByteBuf touch(Object hint) {
-        return wrapped.touch(hint);
+    public CustomByteBuf touch(Object hint) {
+        wrapped.touch(hint);
+        return this;
     }
 
     @Override
@@ -1044,11 +1135,17 @@ public class CustomByteBuf extends ByteBuf {
 
     @Override
     public boolean release() {
-        return wrapped.release();
+        final boolean res = wrapped.release();
+        if(res)
+            recycle();
+        return res;
     }
 
     @Override
     public boolean release(int decrement) {
-        return wrapped.release(decrement);
+        final boolean res = wrapped.release(decrement);
+        if(res)
+            recycle();
+        return res;
     }
 }

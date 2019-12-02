@@ -70,11 +70,10 @@ public class StreamPacketDecoder extends ByteToMessageDecoder {
         frame.getBytes(frame.readerIndex(), bytes, 0, frame.readableBytes());
 
         final CustomByteBuf msg0 = CustomByteBuf.get(frame);
-
         final byte packetId = msg0.readByte();
-        final PacketParser packetParser = idToParser.apply(packetId);
 
         try {
+            final PacketParser packetParser = idToParser.apply(packetId);
             if(packetParser == null)
                 throw new DecoderException("There is no parser for the given ID (" + packetId + ')');
 
@@ -85,6 +84,8 @@ public class StreamPacketDecoder extends ByteToMessageDecoder {
             }
         } catch(Exception e) {
             LOGGER.error("Couldn't parse packet (id: {})", packetId, e);
+        } finally {
+            msg0.recycle();
         }
 
         return null;

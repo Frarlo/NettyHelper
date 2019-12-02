@@ -178,26 +178,29 @@ public class MulticastServerDiscoverer implements NetService {
         private class MulticastDiscovererHandler extends SimpleChannelInboundHandler<DatagramPacket> {
 
             @Override
-            protected void channelRead0(ChannelHandlerContext ctx, DatagramPacket msg) throws Exception {
+            protected void channelRead0(ChannelHandlerContext ctx, DatagramPacket msg) {
                 LOGGER.trace(
                         "Received datagram packet {} (NIC: {}, Multicast Group: {})",
                         msg, interf, mcastSocketAddr);
 
                 final CustomByteBuf buff = CustomByteBuf.get(msg.content());
+                try {
+                    if(buff.readString(id.length()).equals(id)) {
 
-                if(buff.readString(id.length()).equals(id)) {
+                        final InetAddress addr = msg.sender().getAddress();
+                        final int newTcpPort = buff.readInt();
+                        final int newUdpPort = buff.readInt();
 
-                    final InetAddress addr = msg.sender().getAddress();
-                    final int newTcpPort = buff.readInt();
-                    final int newUdpPort = buff.readInt();
+                        LOGGER.trace(
+                                "Found valid server {} using tcp port {} and udp port {}" +
+                                        " (NIC: {}, Multicast Group: {})",
+                                addr, newTcpPort, newUdpPort, interf, mcastSocketAddr);
 
-                    LOGGER.trace(
-                            "Found valid server {} using tcp port {} and udp port {}" +
-                                    " (NIC: {}, Multicast Group: {})",
-                            addr, newTcpPort, newUdpPort, interf, mcastSocketAddr);
-
-                    final Result res = new Result(interf, addr, newTcpPort, newUdpPort);
-                    listeners.forEach(c -> c.accept(res));
+                        final Result res = new Result(interf, addr, newTcpPort, newUdpPort);
+                        listeners.forEach(c -> c.accept(res));
+                    }
+                } finally {
+                    buff.recycle();
                 }
             }
 

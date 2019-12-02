@@ -53,13 +53,15 @@ public class StreamPacketEncoder extends MessageToByteEncoder<StreamPacketContex
     }
 
     public void writePacket(Packet packet, ByteBuf out) throws EncoderException {
-        try {
-            final CustomByteBuf out0 = CustomByteBuf.get(out);
+        final CustomByteBuf out0 = CustomByteBuf.get(out);
 
+        try {
             out0.writeByte(packetToId.apply(packet.getClass()));
             packet.writePacket(out0);
         } catch (Exception ex) {
             throw new EncoderException(ex);
+        } finally {
+            out0.recycle();
         }
     }
 }
