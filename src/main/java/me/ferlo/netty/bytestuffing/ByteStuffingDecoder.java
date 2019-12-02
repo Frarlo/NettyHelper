@@ -1,4 +1,4 @@
-package me.ferlo.netty.charstuffing;
+package me.ferlo.netty.bytestuffing;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -132,7 +132,7 @@ public class ByteStuffingDecoder extends ByteToMessageDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx,
                           ByteBuf in,
-                          List<Object> out) throws Exception {
+                          List<Object> out) throws DelimiterDecoderException {
 
         while(in.isReadable()) {
             final byte b = in.readByte();
@@ -170,8 +170,16 @@ public class ByteStuffingDecoder extends ByteToMessageDecoder {
 
                 } else {
 
-                    frame.release();
+                    if(frame != null)
+                        frame.release();
                     resetFrame();
+
+                    // If the exception was thrown over an <escape><start>,
+                    // make a new frame
+                    if(b == start) {
+                        isReadingFrame = true;
+                        frame = ctx.alloc().buffer();
+                    }
 
                     throw new DelimiterDecoderException(String.format(
                             "There was an error while decoding packets. Discarding data." +
@@ -191,7 +199,7 @@ public class ByteStuffingDecoder extends ByteToMessageDecoder {
      * @param b byte to write
      * @throws DelimiterDecoderException if the frame is exceeding the {@link #maxFrameLength}
      */
-    private void writeToFrame(byte b) {
+    private void writeToFrame(byte b) throws DelimiterDecoderException {
 
         frameLength++;
         if(maxFrameLength != -1 && frameLength > maxFrameLength) {

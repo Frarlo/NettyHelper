@@ -76,7 +76,7 @@ public class StreamPacketDecoder extends ByteToMessageDecoder {
 
         try {
             if(packetParser == null)
-                throw new DecoderException("There is no parser for the given ID (" + packetId+ ')');
+                throw new DecoderException("There is no parser for the given ID (" + packetId + ')');
 
             try {
                 return packetParser.parse(msg0);

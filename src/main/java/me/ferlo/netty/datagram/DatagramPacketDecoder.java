@@ -29,6 +29,18 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
     private static final int LAST_FRAGMENT_FLAG = 0x2;
 
     private static final int DEFAULT_PACKET_MAX_DELAY = 50;
+    private static ScheduledExecutorService DEFAULT_EXECUTOR_SERVICE;
+
+    private static ScheduledExecutorService getDefaultExecutorService() {
+        if(DEFAULT_EXECUTOR_SERVICE == null)
+            DEFAULT_EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder()
+                            .setNameFormat(c -> "DatagramPacketDiscard")
+                            .setDaemon(true)
+                            .setPriority(Thread.MIN_PRIORITY)
+                            .build());
+        return DEFAULT_EXECUTOR_SERVICE;
+    }
 
     // Attributes
 
@@ -36,24 +48,29 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
     private final int maxPacketDelay;
     private final Map<Byte, FragmentedPacketInfo> packetsMap;
 
-    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(
-            new ThreadFactoryBuilder()
-                    .setNameFormat(c -> "DatagramPacketDecoder-discard")
-                    .setDaemon(true)
-                    .setPriority(Thread.MIN_PRIORITY)
-                    .build());
+    private final ScheduledExecutorService executorService;
 
     public DatagramPacketDecoder(Function<Byte, PacketParser> idToParser) {
-        this(idToParser, DEFAULT_PACKET_MAX_DELAY);
+        this(idToParser, getDefaultExecutorService());
+    }
+
+    public DatagramPacketDecoder(Function<Byte, PacketParser> idToParser, ScheduledExecutorService executorService) {
+        this(idToParser, DEFAULT_PACKET_MAX_DELAY, executorService);
+    }
+
+    public DatagramPacketDecoder(Function<Byte, PacketParser> idToParser, int maxPacketDelay) {
+        this(idToParser, maxPacketDelay, getDefaultExecutorService());
     }
 
     public DatagramPacketDecoder(Function<Byte, PacketParser> idToParser,
-                                 int maxPacketDelay) {
+                                 int maxPacketDelay,
+                                 ScheduledExecutorService executorService) {
 
         this.decoder = new StreamPacketDecoder(idToParser);
         this.maxPacketDelay = maxPacketDelay;
         this.packetsMap = new ConcurrentHashMap<>();
 
+        this.executorService = executorService;
         this.executorService.scheduleAtFixedRate(() -> {
 
             final long currentMillis = System.currentTimeMillis();
@@ -153,7 +170,7 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
         boolean isParsing;
 
         FragmentedPacketInfo(byte packetId,
-                                    long timestamp) {
+                             long timestamp) {
 
             this.packetId = packetId;
             this.timestamp = timestamp;

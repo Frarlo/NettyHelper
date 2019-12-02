@@ -7,13 +7,17 @@ import io.netty.channel.socket.DatagramChannel;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.InternetProtocolFamily;
 import io.netty.channel.socket.nio.NioDatagramChannel;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.*;
 import me.ferlo.netty.CustomByteBuf;
+import me.ferlo.netty.NetService;
+import me.ferlo.netty.NetworkException;
+import me.ferlo.utils.FutureUtils;
 import me.ferlo.utils.MulticastUtils;
 import me.ferlo.utils.SneakyThrow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -22,12 +26,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-public class MulticastServerDiscoverer implements Closeable {
+public class MulticastServerDiscoverer implements NetService {
 
     // Constants
 
@@ -39,6 +42,7 @@ public class MulticastServerDiscoverer implements Closeable {
 
     private final AtomicBoolean hasStarted = new AtomicBoolean(false);
     private final AtomicBoolean hasStopped = new AtomicBoolean(false);
+    private final CompletableFuture<CompletableFuture<Void>> stopFutureFuture = new CompletableFuture<>();
 
     private final String id;
     private final int shutdownTimeout;
@@ -69,23 +73,49 @@ public class MulticastServerDiscoverer implements Closeable {
                 .forEach(networkInterface -> discoverers.add(new MulticastDiscoverer(networkInterface)));
     }
 
-    public void start() throws Exception {
+    @Override
+    public CompletableFuture<Void> startAsync() throws NetworkException {
         if(hasStarted.getAndSet(true))
-            throw new Exception("MulticastServerDiscoverer cannot be started twice, make a new one");
+            throw new NetworkException("MulticastServerDiscoverer cannot be started twice, make a new one");
 
+        final PromiseCombiner promiseCombiner = new PromiseCombiner(ImmediateEventExecutor.INSTANCE);
         for(MulticastDiscoverer discoverer : discoverers)
-            discoverer.open();
+            promiseCombiner.add((Future<Void>) FutureUtils.javaToNetty(discoverer.open()));
+
+        final Promise<Void> promise = GlobalEventExecutor.INSTANCE.newPromise();
+        promiseCombiner.finish(promise);
+
+        return FutureUtils.nettyToJava(promise);
     }
 
     @Override
-    public void close() throws IOException {
-        if(!hasStarted.get())
-            throw new IOException("MulticastServerDiscoverer hasn't been started");
-        if(hasStopped.getAndSet(true))
-            return;
+    public void close() throws IOException, NetworkException {
+        try {
+            closeAsync().get(shutdownTimeout, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException t) {
+            LOGGER.warn("Closing took too long");
+        } catch (InterruptedException | ExecutionException t) {
+            throw new IOException("Couldn't close " + this, t);
+        }
+    }
 
+    @Override
+    public CompletableFuture<Void> closeAsync() throws NetworkException {
+        if(!hasStarted.get())
+            throw new NetworkException("MulticastServerDiscoverer hasn't been started");
+        if(hasStopped.getAndSet(true))
+            return SneakyThrow.callUnchecked(stopFutureFuture::get);
+
+        final PromiseCombiner promiseCombiner = new PromiseCombiner(ImmediateEventExecutor.INSTANCE);
         for(MulticastDiscoverer discoverer : discoverers)
-            discoverer.close();
+            promiseCombiner.add(discoverer.close());
+
+        final Promise<Void> promise = GlobalEventExecutor.INSTANCE.newPromise();
+        promiseCombiner.finish(promise);
+
+        final CompletableFuture<Void> stopFuture = FutureUtils.nettyToJava(promise);
+        stopFutureFuture.complete(stopFuture);
+        return stopFuture;
     }
 
     public void addListener(Consumer<DiscoveredServer> listener) {
@@ -96,7 +126,7 @@ public class MulticastServerDiscoverer implements Closeable {
         listeners.remove(listener);
     }
 
-    private class MulticastDiscoverer implements Closeable {
+    private class MulticastDiscoverer {
 
         private final NetworkInterface interf;
         private final Bootstrap bootstrap;
@@ -116,31 +146,22 @@ public class MulticastServerDiscoverer implements Closeable {
                     .localAddress(mcastSocketAddr.getPort());
         }
 
-        public void open() throws Exception {
-
-            LOGGER.trace("Binding MulticastDiscoverer for group {} on NIC {}",
-                    mcastSocketAddr, interf);
-
-            try {
-                this.group = new NioEventLoopGroup();
-                this.channelFuture = bootstrap
-                        .group(group)
-                        .bind()
-                        .sync();
-                ((DatagramChannel)channelFuture.channel()).joinGroup(mcastSocketAddr, interf).sync();
-
-            } catch (Throwable t) {
-                throw new Exception("Couldn't bind " + this, t);
-            }
+        public CompletableFuture<Void> open() {
+            return CompletableFuture
+                    .runAsync(() -> {
+                        LOGGER.trace("Binding MulticastDiscoverer for group {} on NIC {}", mcastSocketAddr, interf);
+                        this.group = new NioEventLoopGroup();
+                    }).thenCompose(v -> {
+                        this.channelFuture = bootstrap
+                                .group(group)
+                                .bind();
+                        return FutureUtils.nettyToJava(channelFuture);
+                    }).thenCompose(v -> FutureUtils.nettyToJava(
+                            ((DatagramChannel)channelFuture.channel()).joinGroup(mcastSocketAddr, interf)));
         }
 
-        @Override
-        public void close() throws IOException {
-            try {
-                group.shutdownGracefully().await(shutdownTimeout, TimeUnit.MILLISECONDS);
-            } catch (Throwable t) {
-                throw new IOException("Couldn't close " + this, t);
-            }
+        public Future<?> close() {
+            return group.shutdownGracefully();
         }
 
         @Override
@@ -148,6 +169,7 @@ public class MulticastServerDiscoverer implements Closeable {
             return "MulticastDiscoverer{" +
                     "hasStarted=" + hasStarted +
                     ", hasStopped=" + hasStopped +
+                    ", stopFutureFuture=" + stopFutureFuture +
                     ", mcastGroup=" + mcastSocketAddr +
                     ", interf=" + interf +
                     '}';
@@ -163,7 +185,7 @@ public class MulticastServerDiscoverer implements Closeable {
 
                 final CustomByteBuf buff = CustomByteBuf.get(msg.content());
 
-                if(buff.readString(6).equals(id)) {
+                if(buff.readString(id.length()).equals(id)) {
 
                     final InetAddress addr = msg.sender().getAddress();
                     final int newTcpPort = buff.readInt();

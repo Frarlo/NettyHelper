@@ -1,4 +1,4 @@
-package me.ferlo.netty.charstuffing;
+package me.ferlo.netty.bytestuffing;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
