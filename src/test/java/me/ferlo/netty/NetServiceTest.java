@@ -1,6 +1,7 @@
 package me.ferlo.netty;
 
-import me.ferlo.netty.multicast.LanServerPinger;
+import me.ferlo.netty.multicast.MulticastDiscoveringTest;
+import me.ferlo.netty.multicast.MulticastServerPinger;
 import me.ferlo.netty.multicast.MulticastServerDiscoverer;
 import me.ferlo.utils.FutureUtils;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,13 +46,12 @@ class NetServiceTest {
     }
 
     private static Stream<Arguments> provideNetServices() {
-        final InetSocketAddress multicastAddress = new InetSocketAddress("239.255.43.42", 44337);
-
+        final InetSocketAddress multicastAddress = MulticastDiscoveringTest.MULTICAST_LOCAL_ADDRESS;
         return Stream.of(
-                Arguments.of(LanServerPinger.class.getSimpleName(),
-                        new LanServerPinger("", multicastAddress, 10, 10)),
+                Arguments.of(MulticastServerPinger.class.getSimpleName(),
+                        new MulticastServerPinger("Test", multicastAddress, 10, 10)),
                 Arguments.of(MulticastServerDiscoverer.class.getSimpleName(),
-                        new MulticastServerDiscoverer("", multicastAddress))
+                        new MulticastServerDiscoverer("Test", multicastAddress))
         );
     }
 }

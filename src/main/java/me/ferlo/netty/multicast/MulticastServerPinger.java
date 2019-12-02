@@ -21,11 +21,11 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class LanServerPinger implements NetService {
+public class MulticastServerPinger implements NetService {
 
     // Constants
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(LanServerPinger.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MulticastServerPinger.class);
 
     private static final int DEFAULT_PACKET_DELAY = 1500;
 
@@ -65,54 +65,54 @@ public class LanServerPinger implements NetService {
     private ChannelFuture channelFuture;
     private Future<?> pingFuture;
 
-    public LanServerPinger(String id,
-                           InetSocketAddress multicastAddress,
-                           int tcpPortToSend,
-                           int udpPortToSend) {
+    public MulticastServerPinger(String id,
+                                 InetSocketAddress multicastAddress,
+                                 int tcpPortToSend,
+                                 int udpPortToSend) {
         this(id, DEFAULT_PACKET_DELAY, multicastAddress, tcpPortToSend, udpPortToSend);
     }
 
-    public LanServerPinger(String id,
-                           int packetDelay,
-                           InetSocketAddress multicastAddress,
-                           int tcpPortToSend,
-                           int udpPortToSend) {
+    public MulticastServerPinger(String id,
+                                 int packetDelay,
+                                 InetSocketAddress multicastAddress,
+                                 int tcpPortToSend,
+                                 int udpPortToSend) {
         this(id, packetDelay, multicastAddress, tcpPortToSend, udpPortToSend, getDefaultExecutorService());
     }
 
-    public LanServerPinger(String id,
-                           InetSocketAddress multicastAddress,
-                           int tcpPortToSend,
-                           int udpPortToSend,
-                           ScheduledExecutorService scheduler) {
+    public MulticastServerPinger(String id,
+                                 InetSocketAddress multicastAddress,
+                                 int tcpPortToSend,
+                                 int udpPortToSend,
+                                 ScheduledExecutorService scheduler) {
         this(id, DEFAULT_PACKET_DELAY, multicastAddress, tcpPortToSend, udpPortToSend, scheduler);
     }
 
-    public LanServerPinger(String id,
-                           InetSocketAddress multicastAddress,
-                           int tcpPortToSend,
-                           int udpPortToSend,
-                           ScheduledExecutorService scheduler,
-                           int shutdownTimeout) {
+    public MulticastServerPinger(String id,
+                                 InetSocketAddress multicastAddress,
+                                 int tcpPortToSend,
+                                 int udpPortToSend,
+                                 ScheduledExecutorService scheduler,
+                                 int shutdownTimeout) {
         this(id, DEFAULT_PACKET_DELAY, multicastAddress, tcpPortToSend, udpPortToSend, scheduler, shutdownTimeout);
     }
 
-    public LanServerPinger(String id,
-                           int packetDelay,
-                           InetSocketAddress multicastAddress,
-                           int tcpPortToSend,
-                           int udpPortToSend,
-                           ScheduledExecutorService scheduler) {
+    public MulticastServerPinger(String id,
+                                 int packetDelay,
+                                 InetSocketAddress multicastAddress,
+                                 int tcpPortToSend,
+                                 int udpPortToSend,
+                                 ScheduledExecutorService scheduler) {
         this(id, packetDelay, multicastAddress, tcpPortToSend, udpPortToSend, scheduler, DEFAULT_SHUTDOWN_TIMEOUT);
     }
 
-    public LanServerPinger(String id,
-                           int packetDelay,
-                           InetSocketAddress multicastAddress,
-                           int tcpPortToSend,
-                           int udpPortToSend,
-                           ScheduledExecutorService scheduler,
-                           int shutdownTimeout) {
+    public MulticastServerPinger(String id,
+                                 int packetDelay,
+                                 InetSocketAddress multicastAddress,
+                                 int tcpPortToSend,
+                                 int udpPortToSend,
+                                 ScheduledExecutorService scheduler,
+                                 int shutdownTimeout) {
 
         this.id = id;
         this.packetDelay = packetDelay;

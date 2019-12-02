@@ -8,13 +8,16 @@ import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-class MulticastDiscoveringTest {
+public class MulticastDiscoveringTest {
+
+    // Should be a multicast local address
+    public static final InetSocketAddress MULTICAST_LOCAL_ADDRESS = new InetSocketAddress("239.255.43.42", 44337);
 
     @Test
     void testDiscovering() throws ExecutionException, InterruptedException {
 
         final String id = "Hello world";
-        final InetSocketAddress multicastAddress = new InetSocketAddress("239.255.43.42", 44337);
+        final InetSocketAddress multicastAddress = MULTICAST_LOCAL_ADDRESS;
 
         final int streamPort = 10;
         final int datagramPort = 20;
@@ -23,7 +26,7 @@ class MulticastDiscoveringTest {
         final int packetDelay = 10;
         final int expectedPackets = Math.max(1, (int) Math.ceil((float) testTime / packetDelay) - 1);
 
-        final LanServerPinger pinger = new LanServerPinger(id, packetDelay, multicastAddress, streamPort, datagramPort);
+        final MulticastServerPinger pinger = new MulticastServerPinger(id, packetDelay, multicastAddress, streamPort, datagramPort);
         final MulticastServerDiscoverer discoverer = new MulticastServerDiscoverer(id, multicastAddress);
 
         final CountDownLatch countDownLatch = new CountDownLatch(expectedPackets);
@@ -55,7 +58,7 @@ class MulticastDiscoveringTest {
         final String id0 = "Hello world";
         final String id1 = "Yo bro";
 
-        final InetSocketAddress multicastAddress = new InetSocketAddress("239.255.43.42", 44337);
+        final InetSocketAddress multicastAddress = MULTICAST_LOCAL_ADDRESS;
 
         final int streamPort = 10;
         final int datagramPort = 20;
@@ -63,7 +66,7 @@ class MulticastDiscoveringTest {
         final int testTime = 100;
         final int packetDelay = 10;
 
-        final LanServerPinger pinger = new LanServerPinger(id0, packetDelay, multicastAddress, streamPort, datagramPort);
+        final MulticastServerPinger pinger = new MulticastServerPinger(id0, packetDelay, multicastAddress, streamPort, datagramPort);
         final MulticastServerDiscoverer discoverer = new MulticastServerDiscoverer(id1, multicastAddress);
 
         final CompletableFuture<DiscoveredServer> serverFuture = new CompletableFuture<>();
