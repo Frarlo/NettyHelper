@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ByteStuffingDecoderTest {
 
     @Test
+    @SuppressWarnings("deprecation")
     void testDecode() {
         final byte escape = 'x';
         final byte start = 'y';

@@ -11,7 +11,9 @@ import static io.netty.util.ReferenceCountUtil.releaseLater;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ByteStuffingEncoderTest {
+
     @Test
+    @SuppressWarnings("deprecation")
     void testEncode() {
         final byte escape = 'x';
         final byte start = 'y';
@@ -35,6 +37,7 @@ class ByteStuffingEncoderTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     void testStuffing() {
         final byte escape = 'i';
         final byte start = 'y';
