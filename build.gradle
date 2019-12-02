@@ -1,0 +1,21 @@
+plugins {
+    id 'java'
+}
+
+group 'me.ferlo'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = targetCompatibility = 1.8
+compileJava.options.encoding = 'UTF-8'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+
+    compile 'io.netty:netty-all:4.1.41.Final'
+    compile 'org.slf4j:slf4j-api:1.7.25'
+    compile 'javax.inject:javax.inject:1'
+}
