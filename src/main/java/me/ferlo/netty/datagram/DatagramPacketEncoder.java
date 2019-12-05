@@ -36,9 +36,7 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
         this(packetToId, SAFE_MAX_PACKET_SIZE);
     }
 
-    public DatagramPacketEncoder(Function<Class<? extends Packet>, Byte> packetToId,
-                                 int packetSize) {
-
+    public DatagramPacketEncoder(Function<Class<? extends Packet>, Byte> packetToId, int packetSize) {
         this.encoder = new StreamPacketEncoder(packetToId);
         this.packetSize = packetSize;
     }
