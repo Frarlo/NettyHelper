@@ -7,28 +7,26 @@ import io.netty.util.Recycler;
 
 import java.net.InetSocketAddress;
 
-class ReliabilityDatagramPacket implements ByteBufHolder {
+class ReliableDatagramPacket implements ByteBufHolder {
 
-    private static final Recycler<ReliabilityDatagramPacket> RECYCLER = new Recycler<ReliabilityDatagramPacket>() {
+    private static final Recycler<ReliableDatagramPacket> RECYCLER = new Recycler<ReliableDatagramPacket>() {
         @Override
-        protected ReliabilityDatagramPacket newObject(Handle<ReliabilityDatagramPacket> handle) {
-            return new ReliabilityDatagramPacket(handle);
+        protected ReliableDatagramPacket newObject(Handle<ReliableDatagramPacket> handle) {
+            return new ReliableDatagramPacket(handle);
         }
     };
 
-    private final Recycler.Handle<ReliabilityDatagramPacket> handle;
+    private final Recycler.Handle<ReliableDatagramPacket> handle;
 
     private DatagramPacket datagramPacket;
-    private boolean isReliable;
 
-    private ReliabilityDatagramPacket(Recycler.Handle<ReliabilityDatagramPacket> handle) {
+    private ReliableDatagramPacket(Recycler.Handle<ReliableDatagramPacket> handle) {
         this.handle = handle;
     }
 
-    public static ReliabilityDatagramPacket newInstance(DatagramPacket datagramPacket, boolean isReliable) {
-        final ReliabilityDatagramPacket inst = RECYCLER.get();
+    public static ReliableDatagramPacket newInstance(DatagramPacket datagramPacket) {
+        final ReliableDatagramPacket inst = RECYCLER.get();
         inst.datagramPacket = datagramPacket;
-        inst.isReliable = isReliable;
         return inst;
     }
 
@@ -41,61 +39,56 @@ class ReliabilityDatagramPacket implements ByteBufHolder {
         return datagramPacket;
     }
 
-    public boolean isReliable() {
-        return isReliable;
-    }
-
     @Override
     public String toString() {
         return "ReliableDatagramPacket{" +
                 "handle=" + handle +
                 ", datagramPacket=" + datagramPacket +
-                ", isReliable=" + isReliable +
                 '}';
     }
 
     // DatagramPacket delegate
 
     @Override
-    public ReliabilityDatagramPacket copy() {
+    public ReliableDatagramPacket copy() {
         return replace(content().copy());
     }
 
     @Override
-    public ReliabilityDatagramPacket duplicate() {
+    public ReliableDatagramPacket duplicate() {
         return replace(content().duplicate());
     }
 
     @Override
-    public ReliabilityDatagramPacket retainedDuplicate() {
+    public ReliableDatagramPacket retainedDuplicate() {
         return replace(content().retainedDuplicate());
     }
 
     @Override
-    public ReliabilityDatagramPacket replace(ByteBuf content) {
-        return ReliabilityDatagramPacket.newInstance(datagramPacket.replace(content), isReliable);
+    public ReliableDatagramPacket replace(ByteBuf content) {
+        return ReliableDatagramPacket.newInstance(datagramPacket.replace(content));
     }
 
     @Override
-    public ReliabilityDatagramPacket retain() {
+    public ReliableDatagramPacket retain() {
         datagramPacket.retain();
         return this;
     }
 
     @Override
-    public ReliabilityDatagramPacket retain(int increment) {
+    public ReliableDatagramPacket retain(int increment) {
         datagramPacket.retain(increment);
         return this;
     }
 
     @Override
-    public ReliabilityDatagramPacket touch() {
+    public ReliableDatagramPacket touch() {
         datagramPacket.touch();
         return this;
     }
 
     @Override
-    public ReliabilityDatagramPacket touch(Object hint) {
+    public ReliableDatagramPacket touch(Object hint) {
         datagramPacket.touch(hint);
         return this;
     }

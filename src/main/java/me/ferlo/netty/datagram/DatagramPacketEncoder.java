@@ -106,6 +106,8 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
     }
 
     protected Object newDatagram(DatagramPacketContext ctx, ByteBuf data, InetSocketAddress recipient) {
-        return ReliabilityDatagramPacket.newInstance(new DatagramPacket(data, recipient), ctx.isReliable());
+        if(!ctx.isReliable())
+            return new DatagramPacket(data, recipient);
+        return ReliableDatagramPacket.newInstance(new DatagramPacket(data, recipient));
     }
 }

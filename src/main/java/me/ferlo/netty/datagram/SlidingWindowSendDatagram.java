@@ -17,14 +17,14 @@ class SlidingWindowSendDatagram {
     private final Recycler.Handle<SlidingWindowSendDatagram> handle;
 
     private long id;
-    private ReliabilityDatagramPacket packet;
+    private ReliableDatagramPacket packet;
     private ChannelPromise promise;
 
     private SlidingWindowSendDatagram(Recycler.Handle<SlidingWindowSendDatagram> handle) {
         this.handle = handle;
     }
 
-    static SlidingWindowSendDatagram newInstance(long id, ReliabilityDatagramPacket packet, ChannelPromise promise) {
+    static SlidingWindowSendDatagram newInstance(long id, ReliableDatagramPacket packet, ChannelPromise promise) {
         final SlidingWindowSendDatagram instance = RECYCLER.get();
         instance.id = id;
         instance.packet = packet;
@@ -43,7 +43,7 @@ class SlidingWindowSendDatagram {
         return id;
     }
 
-    public ReliabilityDatagramPacket getPacket() {
+    public ReliableDatagramPacket getPacket() {
         return packet;
     }
 

@@ -33,8 +33,8 @@ class SlidingWindowReliabilityHandlerTest {
 
         final SlidingWindowReliabilityHandler handler = new SlidingWindowReliabilityHandler(0, 4);
         final EmbeddedChannel ch = new EmbeddedChannel(
-                handler.getInboundHandler(),
-                handler.getOutboundHandler());
+                handler.getOutboundHandler(),
+                handler.getInboundHandler());
 
         final InetSocketAddress sender = new InetSocketAddress(12);
         final InetSocketAddress recipient = new InetSocketAddress(13);
@@ -44,10 +44,10 @@ class SlidingWindowReliabilityHandlerTest {
         final ByteBuf buf3 = Unpooled.copyShort(4);
 
         ch.writeOutbound(
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf2.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf3.copy().retain(), recipient, sender), true));
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf2.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf3.copy().retain(), recipient, sender)));
 
         final DatagramPacket read0 = ch.readOutbound();
         assertArrayEquals(
@@ -107,8 +107,8 @@ class SlidingWindowReliabilityHandlerTest {
 
         final SlidingWindowReliabilityHandler handler = new SlidingWindowReliabilityHandler(0, 2);
         final EmbeddedChannel ch = new EmbeddedChannel(
-                handler.getInboundHandler(),
-                handler.getOutboundHandler());
+                handler.getOutboundHandler(),
+                handler.getInboundHandler());
 
         final InetSocketAddress sender = new InetSocketAddress(12);
         final InetSocketAddress recipient = new InetSocketAddress(13);
@@ -116,11 +116,11 @@ class SlidingWindowReliabilityHandlerTest {
         final ByteBuf buf1 = Unpooled.copyBoolean(false);
 
         ch.writeOutbound(
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true));
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender)),
+                ReliableDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender)));
 
         // Read the first 2 packets
         final DatagramPacket read0 = ch.readOutbound();
@@ -138,7 +138,7 @@ class SlidingWindowReliabilityHandlerTest {
         ch.writeInbound(read0, read1);
 
         final DatagramPacket ack0 = ch.readOutbound();
-        assertNotNull(ack0,  "First packet ack is null");
+        assertNotNull(ack0, "First packet ack is null");
         assertArrayEquals(
                 toBytes(((DatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),
@@ -168,7 +168,7 @@ class SlidingWindowReliabilityHandlerTest {
         ch.writeInbound(read2, read3);
 
         final DatagramPacket ack2 = ch.readOutbound();
-        assertNotNull(ack2,  "Third packet ack is null");
+        assertNotNull(ack2, "Third packet ack is null");
         assertArrayEquals(
                 toBytes(((DatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),
@@ -193,7 +193,7 @@ class SlidingWindowReliabilityHandlerTest {
         ch.writeInbound(read4);
 
         final DatagramPacket ack4 = ch.readOutbound();
-        assertNotNull(ack0,  "Fifth packet ack is null");
+        assertNotNull(ack0, "Fifth packet ack is null");
         assertArrayEquals(
                 toBytes(((DatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),

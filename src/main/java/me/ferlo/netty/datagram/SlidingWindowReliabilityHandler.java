@@ -2,12 +2,14 @@ package me.ferlo.netty.datagram;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.EncoderException;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
+import io.netty.util.Recycler;
 
 import java.net.InetSocketAddress;
 import java.util.*;
@@ -82,7 +84,14 @@ public class SlidingWindowReliabilityHandler {
         }
     }
 
-    class OutboundHandler extends MessageToMessageEncoder<ReliabilityDatagramPacket> {
+    class OutboundHandler extends MessageToMessageEncoder<Object> {
+
+        @Override
+        public boolean acceptOutboundMessage(Object msg) {
+            return msg instanceof DatagramPacket ||
+                    msg instanceof ReliableDatagramPacket ||
+                    msg instanceof WrappedDatagram;
+        }
 
         @Override
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
@@ -92,12 +101,20 @@ public class SlidingWindowReliabilityHandler {
                     return;
                 }
 
-                final ReliabilityDatagramPacket cast = (ReliabilityDatagramPacket) msg;
-                if(!cast.isReliable()) {
-                    super.write(ctx, handleUnreliable(ctx, cast), promise);
+                if(msg instanceof WrappedDatagram) {
+                    final DatagramPacket unwrapped = ((WrappedDatagram) msg).getDatagramPacket();
+                    unwrapped.retain();
+
+                    super.write(ctx, unwrapped, promise);
                     return;
                 }
 
+                if(msg instanceof DatagramPacket) {
+                    super.write(ctx, handleUnreliable(ctx, (DatagramPacket) msg), promise);
+                    return;
+                }
+
+                final ReliableDatagramPacket cast = (ReliableDatagramPacket) msg;
                 final DatagramPacket toWrite = getWindow(cast.recipient()).handleSendReliable(ctx, cast, promise);
                 if(toWrite != null)
                     super.write(ctx, toWrite, ctx.voidPromise());
@@ -108,7 +125,7 @@ public class SlidingWindowReliabilityHandler {
             }
         }
 
-        private DatagramPacket handleUnreliable(ChannelHandlerContext ctx, ReliabilityDatagramPacket msg) {
+        private DatagramPacket handleUnreliable(ChannelHandlerContext ctx, DatagramPacket msg) {
             final ByteBuf header = ctx.alloc().buffer(1, 1);
             header.writeByte(0);
 
@@ -116,11 +133,11 @@ public class SlidingWindowReliabilityHandler {
             msg = msg.replace(datagramBuf);
             msg.retain();
 
-            return msg.getActualDatagram();
+            return msg;
         }
 
         @Override
-        protected void encode(ChannelHandlerContext ctx, ReliabilityDatagramPacket msg, List<Object> out) {
+        protected void encode(ChannelHandlerContext ctx, Object msg, List<Object> out) {
             out.add(msg);
         }
     }
@@ -156,7 +173,7 @@ public class SlidingWindowReliabilityHandler {
         }
 
         private DatagramPacket handleSendReliable(ChannelHandlerContext ctx,
-                                                  ReliabilityDatagramPacket msg,
+                                                  ReliableDatagramPacket msg,
                                                   ChannelPromise promise) {
 
             final long datagramId = this.datagramId.getAndIncrement();
@@ -195,7 +212,7 @@ public class SlidingWindowReliabilityHandler {
             }
 
             sentDatagrams.put(head.getId(), head);
-            ctx.writeAndFlush(head.getPacket().getActualDatagram());
+            writeDatagram(ctx, head.getPacket().getActualDatagram());
         }
 
         private void handleReceiveReliable(ChannelHandlerContext ctx,
@@ -210,7 +227,7 @@ public class SlidingWindowReliabilityHandler {
             ackBuf.writeByte(ACK_FLAG);
             ackBuf.writeLong(id);
 
-            ctx.writeAndFlush(new DatagramPacket(ackBuf, msg.sender(), msg.recipient()));
+            writeDatagram(ctx, new DatagramPacket(ackBuf, msg.sender(), msg.recipient()));
 
             // Even if a packet was already received, resend the ack
             // just in case it got lost
@@ -245,6 +262,43 @@ public class SlidingWindowReliabilityHandler {
                 iter.remove();
                 currInfo.recycle();
             }
+        }
+
+        private ChannelFuture writeDatagram(ChannelHandlerContext ctx, DatagramPacket datagramPacket) {
+            // Wrap it so we are sure ti goes through all the pipeline without getting modified
+            return ctx.writeAndFlush(WrappedDatagram.newInstance(datagramPacket));
+        }
+    }
+
+    static class WrappedDatagram {
+
+        private static final Recycler<WrappedDatagram> RECYCLER = new Recycler<WrappedDatagram>() {
+            @Override
+            protected WrappedDatagram newObject(Handle<WrappedDatagram> handle) {
+                return new WrappedDatagram(handle);
+            }
+        };
+
+        private final Recycler.Handle<WrappedDatagram> handle;
+        private DatagramPacket datagramPacket;
+
+        private WrappedDatagram(Recycler.Handle<WrappedDatagram> handle) {
+            this.handle = handle;
+        }
+
+        public static WrappedDatagram newInstance(DatagramPacket datagramPacket) {
+            final WrappedDatagram inst = RECYCLER.get();
+            inst.datagramPacket = datagramPacket;
+            return inst;
+        }
+
+        public void recycle() {
+            datagramPacket = null;
+            handle.recycle(this);
+        }
+
+        public DatagramPacket getDatagramPacket() {
+            return datagramPacket;
         }
     }
 }
