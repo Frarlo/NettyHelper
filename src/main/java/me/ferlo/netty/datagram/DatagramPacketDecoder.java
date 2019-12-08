@@ -7,7 +7,6 @@ import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.util.Recycler;
-import me.ferlo.netty.core.Packet;
 import me.ferlo.netty.core.PacketParser;
 import me.ferlo.netty.stream.StreamPacketDecoder;
 import me.ferlo.utils.ThreadFactoryBuilder;
@@ -20,7 +19,7 @@ import java.util.SortedMap;
 import java.util.concurrent.*;
 import java.util.function.Function;
 
-public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacket> {
+public class DatagramPacketDecoder extends MessageToMessageDecoder<Object> {
 
     // Constants
 
@@ -78,9 +77,8 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
             packetsMap.values().removeIf(info -> {
 
                 final long currDelay = currentMillis - info.timestamp;
-                final boolean shouldRemove = !info.isParsing && currDelay > this.maxPacketDelay;
+                final boolean shouldRemove = !info.isReliable && !info.isParsing && currDelay > this.maxPacketDelay;
 
-                // TODO: what about reliable packets?
                 if(shouldRemove) {
                     LOGGER.debug("Discarded Datagram packet: currDelay {}, maxDelay: {}", currDelay, this.maxPacketDelay);
 
@@ -94,16 +92,25 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx,
-                          DatagramPacket msg,
-                          List<Object> out) throws DecoderException {
-        final Packet packet = decode(ctx, msg);
-
-        if(packet != null)
-            out.add(packet);
+    public boolean acceptInboundMessage(Object msg) {
+        return msg instanceof DatagramPacket || msg instanceof ReliableDatagramPacket;
     }
 
-    public Packet decode(ChannelHandlerContext ctx, DatagramPacket in) throws DecoderException {
+    @Override
+    protected void decode(ChannelHandlerContext ctx,
+                          Object msg,
+                          List<Object> out) throws DecoderException {
+
+        final boolean reliable = msg instanceof ReliableDatagramPacket;
+        if(msg instanceof ReliableDatagramPacket)
+            msg = ((ReliableDatagramPacket) msg).getActualDatagram();
+
+        final Object decoded = decode(ctx, (DatagramPacket) msg, reliable);
+        if(decoded != null)
+            out.add(decoded);
+    }
+
+    public Object decode(ChannelHandlerContext ctx, DatagramPacket in, boolean reliable) throws DecoderException {
 
         final ByteBuf byteBuf = in.content();
 
@@ -126,6 +133,7 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
                 isLastFragment, packetId, fragmentId);
 
         final FragmentedPacketInfo info = packetsMap.computeIfAbsent(packetId, FragmentedPacketInfo::newInstance);
+        info.isReliable = reliable;
         info.timestamp = System.currentTimeMillis();
 
         final ByteBuf copyBuf = byteBuf.copy();
@@ -178,6 +186,8 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
         byte packetId = -1;;
         SortedMap<Byte, ByteBuf> fragments = new ConcurrentSkipListMap<>();
         long timestamp = -1;;
+
+        boolean isReliable;
 
         ByteBuf lastFragment;
         byte lastFragmentId = -1;;

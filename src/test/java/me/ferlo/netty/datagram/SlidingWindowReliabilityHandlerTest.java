@@ -75,7 +75,7 @@ class SlidingWindowReliabilityHandlerTest {
         ch.writeInbound(read0, read3);
 
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),
                 "First received packet content is wrong");
         assertNull(ch.readInbound(), "Received packet out of order");
@@ -83,15 +83,15 @@ class SlidingWindowReliabilityHandlerTest {
         // Send 2 and 3, should be getting 2, 3, 4
         ch.writeInbound(read1, read2);
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf1),
                 "Second received packet content is wrong");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf2),
                 "Third received packet content is wrong");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf3),
                 "Fourth received packet content is wrong");
 
@@ -140,13 +140,13 @@ class SlidingWindowReliabilityHandlerTest {
         final DatagramPacket ack0 = ch.readOutbound();
         assertNotNull(ack0, "First packet ack is null");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),
                 "First received packet content is wrong");
         final DatagramPacket ack1 = ch.readOutbound();
         assertNotNull(ack1, "Second packet ack is null");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf1),
                 "Second received packet content is wrong");
 
@@ -170,13 +170,13 @@ class SlidingWindowReliabilityHandlerTest {
         final DatagramPacket ack2 = ch.readOutbound();
         assertNotNull(ack2, "Third packet ack is null");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),
                 "Third received packet content is wrong");
         final DatagramPacket ack3 = ch.readOutbound();
         assertNotNull(ack3, "Fourth packet ack is null");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf1),
                 "Fourth received packet content is wrong");
 
@@ -195,7 +195,7 @@ class SlidingWindowReliabilityHandlerTest {
         final DatagramPacket ack4 = ch.readOutbound();
         assertNotNull(ack0, "Fifth packet ack is null");
         assertArrayEquals(
-                toBytes(((DatagramPacket)ch.readInbound()).content()),
+                toBytes(((ReliableDatagramPacket)ch.readInbound()).content()),
                 toBytes(buf0),
                 "Third received packet content is wrong");
 

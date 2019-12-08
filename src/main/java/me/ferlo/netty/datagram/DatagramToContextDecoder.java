@@ -3,37 +3,35 @@ package me.ferlo.netty.datagram;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.DecoderException;
-import io.netty.handler.codec.MessageToMessageDecoder;
 import me.ferlo.netty.core.Packet;
 import me.ferlo.netty.core.PacketParser;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
-public class DatagramToContextDecoder extends MessageToMessageDecoder<DatagramPacket> {
+public class DatagramToContextDecoder extends DatagramPacketDecoder {
 
-    private final DatagramPacketDecoder decoder;
     private final Function<DatagramPacketContext, CompletableFuture<Void>> replyConsumer;
 
     public DatagramToContextDecoder(Function<Byte, PacketParser> idToParser,
                                     Function<DatagramPacketContext, CompletableFuture<Void>> replyConsumer) {
-        this.decoder = new DatagramPacketDecoder(idToParser);
+        super(idToParser);
         this.replyConsumer = replyConsumer;
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx,
-                          DatagramPacket msg,
-                          List<Object> out) throws DecoderException {
+    public Object decode(ChannelHandlerContext ctx, DatagramPacket msg, boolean reliable) throws DecoderException {
 
-        final Packet packet = decoder.decode(ctx, msg);
-        if(packet != null)
-            out.add(DefaultDatagramPacketContext.newInstance(
-                    packet,
-                    msg.sender(),
-                    msg.recipient(),
-                    replyConsumer
-            ));
+        final Object res = super.decode(ctx, msg, reliable);
+        if(!(res instanceof Packet))
+            return res;
+
+        final Packet packet = (Packet) res;
+        return DefaultDatagramPacketContext.newInstance(
+                packet,
+                msg.sender(),
+                msg.recipient(),
+                replyConsumer
+        );
     }
 }

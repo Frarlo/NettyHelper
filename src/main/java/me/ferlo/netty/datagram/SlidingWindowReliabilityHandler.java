@@ -247,7 +247,7 @@ public class SlidingWindowReliabilityHandler {
 
             // Start of the window, receive it
             msg.retain();
-            decoded.add(msg);
+            decoded.add(ReliableDatagramPacket.newInstance(msg));
             // Receive all the ones immediately subsequent to the received id
             final Iterator<SlidingWindowReceiveDatagram> iter = receivedUnorderedPackets.iterator();
             while(iter.hasNext()) {
@@ -258,7 +258,7 @@ public class SlidingWindowReliabilityHandler {
                 if(currId != receiveWindowStart.getAndUpdate(i -> (i == currId) ? i + 1 : i))
                     break;
 
-                decoded.add(currPacket);
+                decoded.add(ReliableDatagramPacket.newInstance(currPacket));
                 iter.remove();
                 currInfo.recycle();
             }
