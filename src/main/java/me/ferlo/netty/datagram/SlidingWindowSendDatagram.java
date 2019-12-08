@@ -18,16 +18,28 @@ class SlidingWindowSendDatagram {
 
     private long id;
     private ReliableDatagramPacket packet;
+    private long timestamp;
     private ChannelPromise promise;
 
     private SlidingWindowSendDatagram(Recycler.Handle<SlidingWindowSendDatagram> handle) {
         this.handle = handle;
     }
 
-    static SlidingWindowSendDatagram newInstance(long id, ReliableDatagramPacket packet, ChannelPromise promise) {
+    static SlidingWindowSendDatagram newInstance(long id,
+                                                 ReliableDatagramPacket packet,
+                                                 ChannelPromise promise) {
+        return newInstance(id, packet, -1, promise);
+    }
+
+    static SlidingWindowSendDatagram newInstance(long id,
+                                                 ReliableDatagramPacket packet,
+                                                 long timestamp,
+                                                 ChannelPromise promise) {
+
         final SlidingWindowSendDatagram instance = RECYCLER.get();
         instance.id = id;
         instance.packet = packet;
+        instance.timestamp = timestamp;
         instance.promise = promise;
         return instance;
     }
@@ -35,6 +47,7 @@ class SlidingWindowSendDatagram {
     public void recycle() {
         id = -1;
         packet = null;
+        timestamp = -1;
         promise = null;
         handle.recycle(this);
     }
@@ -45,6 +58,14 @@ class SlidingWindowSendDatagram {
 
     public ReliableDatagramPacket getPacket() {
         return packet;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
     }
 
     public ChannelPromise getPromise() {

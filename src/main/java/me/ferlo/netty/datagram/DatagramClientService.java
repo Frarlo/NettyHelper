@@ -72,7 +72,6 @@ public class DatagramClientService implements NetService {
                         final int packetSize = DatagramPacketEncoder.SAFE_MAX_PACKET_SIZE;
 
                         final SlidingWindowReliabilityHandler slidingWindow = new SlidingWindowReliabilityHandler(
-                                0,
                                 (int) Math.ceil(sendBuffSize / 4D / packetSize));
                         ch.pipeline().addLast(
                                 // ↑

@@ -86,6 +86,7 @@ class DatagramClientServerTest {
                         @Override
                         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
                             receivedString0.completeExceptionally(cause);
+                            receivedString1.completeExceptionally(cause);
                         }
                     });
             FutureUtils.getUnchecked(datagramServerService.startAsync());
@@ -103,6 +104,7 @@ class DatagramClientServerTest {
 
                         @Override
                         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                            receivedString0.completeExceptionally(cause);
                             receivedString1.completeExceptionally(cause);
                         }
                     });
@@ -110,10 +112,10 @@ class DatagramClientServerTest {
 
             datagramClientService.sendPacket(new BigFatPacket(generatedString), true);
 
-            final String s0 = FutureUtils.getUnchecked(receivedString0, 5000, TimeUnit.MILLISECONDS);
+            final String s0 = FutureUtils.getUnchecked(receivedString0, Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
             assertEquals(generatedString, s0, "Sent string and received differs (Client -> Server | reliable)");
 
-            final String s1 = FutureUtils.getUnchecked(receivedString1, 5000, TimeUnit.MILLISECONDS);
+            final String s1 = FutureUtils.getUnchecked(receivedString1, Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
             assertEquals(generatedString, s1, "Sent string and received differs (Server -> Client | un-reliable)");
 
         } catch (TimeoutException e) {

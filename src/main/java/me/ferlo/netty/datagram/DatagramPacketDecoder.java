@@ -88,7 +88,7 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<Object> {
                 }
                 return shouldRemove;
             });
-        }, maxPacketDelay, maxPacketDelay, TimeUnit.MILLISECONDS);
+        }, maxPacketDelay / 2, maxPacketDelay / 2, TimeUnit.MILLISECONDS);
     }
 
     @Override

@@ -2,6 +2,7 @@ package me.ferlo.netty.datagram;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -10,38 +11,68 @@ import io.netty.handler.codec.EncoderException;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.util.Recycler;
+import me.ferlo.utils.ThreadFactoryBuilder;
 
 import java.net.InetSocketAddress;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class SlidingWindowReliabilityHandler {
 
+    // Constants
+
     private static final byte ACK_FLAG = 0x1;
     private static final byte RELIABLE_FLAG = 0x2;
 
+    private static final int DEFAULT_RESEND_DELAY = 250;
+    private static ScheduledExecutorService DEFAULT_EXECUTOR_SERVICE;
+
+    private static ScheduledExecutorService getDefaultExecutorService() {
+        if(DEFAULT_EXECUTOR_SERVICE == null)
+            DEFAULT_EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder()
+                            .setNameFormat(c -> "DatagramSlidingWindowResend")
+                            .setDaemon(true)
+                            .setPriority(Thread.MIN_PRIORITY)
+                            .build());
+        return DEFAULT_EXECUTOR_SERVICE;
+    }
+
+    // Attributes
+
     private final int windowSize;
-    private final long startId;
+    private final int resendDelay;
 
     private final InboundHandler inboundHandler;
     private final OutboundHandler outboundHandler;
 
     private final ConcurrentMap<InetSocketAddress, SlidingWindow> senderToWindow;
 
-    public SlidingWindowReliabilityHandler(long startId, int windowSize) {
+    public SlidingWindowReliabilityHandler(int windowSize) {
+        this(windowSize, DEFAULT_RESEND_DELAY);
+    }
+
+    public SlidingWindowReliabilityHandler(int windowSize, int resendDelay) {
+        this(windowSize, resendDelay, getDefaultExecutorService());
+    }
+
+    public SlidingWindowReliabilityHandler(int windowSize,
+                                           int resendDelay,
+                                           ScheduledExecutorService executorService) {
+
+        this.windowSize = windowSize;
+        this.resendDelay = resendDelay;
+
+        this.senderToWindow = new ConcurrentHashMap<>();
 
         this.inboundHandler = new InboundHandler();
         this.outboundHandler = new OutboundHandler();
 
-        this.windowSize = windowSize;
-        this.startId = startId;
-
-        this.senderToWindow = new ConcurrentHashMap<>();
+        executorService.scheduleAtFixedRate(() ->
+                senderToWindow.values().forEach(SlidingWindow::resend),
+                resendDelay / 2, resendDelay / 2, TimeUnit.MILLISECONDS);
     }
 
     public InboundHandler getInboundHandler() {
@@ -52,8 +83,8 @@ public class SlidingWindowReliabilityHandler {
         return outboundHandler;
     }
 
-    private SlidingWindow getWindow(InetSocketAddress sender) {
-        return senderToWindow.computeIfAbsent(sender, s -> new SlidingWindow(startId, windowSize));
+    private SlidingWindow getWindow(ChannelHandlerContext ctx, InetSocketAddress sender) {
+        return senderToWindow.computeIfAbsent(sender, s -> new SlidingWindow(ctx.channel(), windowSize, resendDelay));
     }
 
     class InboundHandler extends MessageToMessageDecoder<DatagramPacket> {
@@ -63,14 +94,14 @@ public class SlidingWindowReliabilityHandler {
                               DatagramPacket msg,
                               List<Object> out) {
 
-            final SlidingWindow window = getWindow(msg.sender());
+            final SlidingWindow window = getWindow(ctx, msg.sender());
 
             final ByteBuf buf = msg.content();
             final byte flags = buf.readByte();
 
             if((flags & ACK_FLAG) != 0) { // if(isAck)
                 final long id = buf.readLong();
-                window.handleAck(ctx, id);
+                window.handleAck(id);
             } else {
                 if((flags & RELIABLE_FLAG) == 0) { // if(!reliable)
                     msg.retain();
@@ -79,7 +110,7 @@ public class SlidingWindowReliabilityHandler {
                 }
 
                 final long id = buf.readLong();
-                window.handleReceiveReliable(ctx, id, msg, out);
+                window.handleReceiveReliable(id, msg, out);
             }
         }
     }
@@ -115,7 +146,9 @@ public class SlidingWindowReliabilityHandler {
                 }
 
                 final ReliableDatagramPacket cast = (ReliableDatagramPacket) msg;
-                final DatagramPacket toWrite = getWindow(cast.recipient()).handleSendReliable(ctx, cast, promise);
+                final SlidingWindow window = getWindow(ctx, cast.recipient());
+
+                final DatagramPacket toWrite = window.handleSendReliable(cast, promise);
                 if(toWrite != null)
                     super.write(ctx, toWrite, ctx.voidPromise());
             } catch (EncoderException e) {
@@ -144,12 +177,14 @@ public class SlidingWindowReliabilityHandler {
 
     static class SlidingWindow {
 
+        private final Channel channel;
         private final int windowSize;
+        private final int resendDelay;
 
         // Send stuff
 
         private final ConcurrentMap<Long, SlidingWindowSendDatagram> sentDatagrams;
-        private final AtomicInteger sentDatagramsSize = new AtomicInteger();
+        private final AtomicInteger sentDatagramsSize;
 
         private final Queue<SlidingWindowSendDatagram> toSendDatagrams;
         private final AtomicLong datagramId;
@@ -159,35 +194,40 @@ public class SlidingWindowReliabilityHandler {
         private final AtomicLong receiveWindowStart;
         private final SortedSet<SlidingWindowReceiveDatagram> receivedUnorderedPackets;
 
-
-        public SlidingWindow(long startId, int windowSize) {
+        SlidingWindow(Channel channel, int windowSize, int resendDelay) {
+            this.channel = channel;
+            this.windowSize = windowSize;
+            this.resendDelay = resendDelay;
 
             this.sentDatagrams = new ConcurrentHashMap<>();
+            this.sentDatagramsSize = new AtomicInteger(0);
             this.toSendDatagrams = new ConcurrentLinkedQueue<>();
-            this.datagramId = new AtomicLong(startId);
+            this.datagramId = new AtomicLong(0);
 
+            this.receiveWindowStart = new AtomicLong(0);
             this.receivedUnorderedPackets = new ConcurrentSkipListSet<>(Comparator.comparingLong(SlidingWindowReceiveDatagram::getId));
-
-            this.windowSize = windowSize;
-            this.receiveWindowStart = new AtomicLong(startId);
         }
 
-        private DatagramPacket handleSendReliable(ChannelHandlerContext ctx,
-                                                  ReliableDatagramPacket msg,
-                                                  ChannelPromise promise) {
-
+        private DatagramPacket handleSendReliable(ReliableDatagramPacket msg, ChannelPromise promise) {
             final long datagramId = this.datagramId.getAndIncrement();
 
-            final ByteBuf header = ctx.alloc().buffer(9, 9);
+            final ByteBuf header = channel.alloc().buffer(9, 9);
             header.writeByte(RELIABLE_FLAG);
             header.writeLong(datagramId);
 
             final ByteBuf datagramBuf = Unpooled.wrappedBuffer(header, msg.content());
             msg = msg.replace(datagramBuf);
+            // Retain to store
             msg.retain();
 
             if(sentDatagramsSize.getAndUpdate(i -> Math.min(i + 1, windowSize)) < windowSize) {
-                sentDatagrams.put(datagramId, SlidingWindowSendDatagram.newInstance(datagramId, msg, promise));
+                sentDatagrams.put(datagramId, SlidingWindowSendDatagram.newInstance(
+                        datagramId,
+                        msg,
+                        System.currentTimeMillis(),
+                        promise));
+                // Retain to send
+                msg.retain();
                 return msg.getActualDatagram();
             }
 
@@ -195,7 +235,7 @@ public class SlidingWindowReliabilityHandler {
             return null;
         }
 
-        private void handleAck(ChannelHandlerContext ctx, long id) {
+        private void handleAck(long id) {
 
             final SlidingWindowSendDatagram acked = sentDatagrams.remove(id);
             // Already received an ack for that packet, probably duplicated somehow
@@ -212,22 +252,22 @@ public class SlidingWindowReliabilityHandler {
             }
 
             sentDatagrams.put(head.getId(), head);
-            writeDatagram(ctx, head.getPacket().getActualDatagram());
+            head.setTimestamp(System.currentTimeMillis());
+            writeDatagram(head.getPacket().getActualDatagram());
         }
 
-        private void handleReceiveReliable(ChannelHandlerContext ctx,
-                                           long id,
+        private void handleReceiveReliable(long id,
                                            DatagramPacket msg,
                                            List<Object> decoded) {
 
             final int delta = (int) (id - receiveWindowStart.getAndUpdate(i -> (i == id) ? i + 1 : i));
             final SlidingWindowReceiveDatagram info = SlidingWindowReceiveDatagram.newInstance(id, msg);
 
-            final ByteBuf ackBuf = ctx.alloc().buffer(9);
+            final ByteBuf ackBuf = channel.alloc().buffer(9);
             ackBuf.writeByte(ACK_FLAG);
             ackBuf.writeLong(id);
 
-            writeDatagram(ctx, new DatagramPacket(ackBuf, msg.sender(), msg.recipient()));
+            writeDatagram(new DatagramPacket(ackBuf, msg.sender(), msg.recipient()));
 
             // Even if a packet was already received, resend the ack
             // just in case it got lost
@@ -264,9 +304,28 @@ public class SlidingWindowReliabilityHandler {
             }
         }
 
-        private ChannelFuture writeDatagram(ChannelHandlerContext ctx, DatagramPacket datagramPacket) {
+        void resend() {
+            final long currentMillis = System.currentTimeMillis();
+
+            sentDatagrams.values().forEach(datagramInfo -> {
+                if(currentMillis - datagramInfo.getTimestamp() < resendDelay)
+                    return;
+
+                datagramInfo.setTimestamp(currentMillis);
+
+                try {
+                    final DatagramPacket datagramPacket = datagramInfo.getPacket().getActualDatagram();
+                    datagramPacket.retain();
+                    writeDatagram(datagramPacket);
+                } catch (Throwable t) {
+                    channel.pipeline().fireExceptionCaught(t);
+                }
+            });
+        }
+
+        private ChannelFuture writeDatagram(DatagramPacket datagramPacket) {
             // Wrap it so we are sure ti goes through all the pipeline without getting modified
-            return ctx.writeAndFlush(WrappedDatagram.newInstance(datagramPacket));
+            return channel.writeAndFlush(WrappedDatagram.newInstance(datagramPacket));
         }
     }
 

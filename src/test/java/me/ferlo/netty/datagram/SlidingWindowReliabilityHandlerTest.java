@@ -31,7 +31,7 @@ class SlidingWindowReliabilityHandlerTest {
     @Test
     void testOrder() {
 
-        final SlidingWindowReliabilityHandler handler = new SlidingWindowReliabilityHandler(0, 4);
+        final SlidingWindowReliabilityHandler handler = new SlidingWindowReliabilityHandler(4);
         final EmbeddedChannel ch = new EmbeddedChannel(
                 handler.getOutboundHandler(),
                 handler.getInboundHandler());
@@ -105,7 +105,7 @@ class SlidingWindowReliabilityHandlerTest {
     @Test
     void testFlow() {
 
-        final SlidingWindowReliabilityHandler handler = new SlidingWindowReliabilityHandler(0, 2);
+        final SlidingWindowReliabilityHandler handler = new SlidingWindowReliabilityHandler(2);
         final EmbeddedChannel ch = new EmbeddedChannel(
                 handler.getOutboundHandler(),
                 handler.getInboundHandler());

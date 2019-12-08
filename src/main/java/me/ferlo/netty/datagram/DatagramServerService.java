@@ -69,7 +69,6 @@ public class DatagramServerService implements NetService {
                         final int packetSize = DatagramPacketEncoder.SAFE_MAX_PACKET_SIZE;
 
                         final SlidingWindowReliabilityHandler slidingWindow = new SlidingWindowReliabilityHandler(
-                                0,
                                 (int) Math.ceil(sendBuffSize / 4D / packetSize));
 
                         ch.pipeline().addLast(
@@ -93,7 +92,7 @@ public class DatagramServerService implements NetService {
 
         return CompletableFuture
                 .runAsync(() -> {
-                    LOGGER.info("Connecting DatagramServerService on {}...", port);
+                    LOGGER.info("Binding DatagramServerService on port {}...", port);
                     this.group = new NioEventLoopGroup();
                 })
                 .thenCompose(v -> {
