@@ -5,7 +5,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.DatagramPacket;
-import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.EncoderException;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
@@ -94,18 +93,19 @@ public class SlidingWindowReliabilityHandler {
         private void handleAck(ChannelHandlerContext ctx, long id) {
 
             final SlidingWindowSendDatagram acked = sentDatagrams.remove(id);
+            // Already received an ack for that packet, probably duplicated somehow
+            // Do nothing
             if(acked == null)
-                throw new DecoderException(String.format(
-                        "Received an ack with id %s, but the sent datagram buffer does not contain it (buff: %s)",
-                        id, sentDatagrams));
+                return;
             acked.getPromise().setSuccess();
             acked.recycle();
 
             final SlidingWindowSendDatagram head = toSendDatagrams.poll();
-            if(head == null)
+            if(head == null) {
+                sentDatagramsSize.decrementAndGet();
                 return;
+            }
 
-            sentDatagramsSize.incrementAndGet();
             sentDatagrams.put(head.getId(), head);
             ctx.writeAndFlush(head.getPacket().getActualDatagram());
         }
@@ -118,17 +118,18 @@ public class SlidingWindowReliabilityHandler {
             final int delta = (int) (id - receiveWindowStart.getAndUpdate(i -> (i == id) ? i + 1 : i));
             final SlidingWindowReceiveDatagram info = SlidingWindowReceiveDatagram.newInstance(id, msg);
 
-            // If a packet was already received, do nothing
-            if(delta < 0 || receivedUnorderedPackets.contains(info)) {
-                info.recycle();
-                return;
-            }
-
             final ByteBuf ackBuf = ctx.alloc().buffer(9);
             ackBuf.writeByte(ACK_FLAG);
             ackBuf.writeLong(id);
 
             ctx.writeAndFlush(new DatagramPacket(ackBuf, msg.sender(), msg.recipient()));
+
+            // Even if a packet was already received, resend the ack
+            // just in case it got lost
+            if(delta < 0 || receivedUnorderedPackets.contains(info)) {
+                info.recycle();
+                return;
+            }
 
             // If it's not the start of the window, add it to the waiting packets
             if(delta > 0) {
