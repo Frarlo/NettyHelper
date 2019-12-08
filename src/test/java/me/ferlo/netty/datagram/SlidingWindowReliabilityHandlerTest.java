@@ -36,17 +36,18 @@ class SlidingWindowReliabilityHandlerTest {
                 handler.getInboundHandler(),
                 handler.getOutboundHandler());
 
-        final InetSocketAddress address = new InetSocketAddress(12);
+        final InetSocketAddress sender = new InetSocketAddress(12);
+        final InetSocketAddress recipient = new InetSocketAddress(13);
         final ByteBuf buf0 = Unpooled.copyShort(1);
         final ByteBuf buf1 = Unpooled.copyShort(2);
         final ByteBuf buf2 = Unpooled.copyShort(3);
         final ByteBuf buf3 = Unpooled.copyShort(4);
 
         ch.writeOutbound(
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf2.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf3.copy().retain(), address), true));
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf2.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf3.copy().retain(), recipient, sender), true));
 
         final DatagramPacket read0 = ch.readOutbound();
         assertArrayEquals(
@@ -109,16 +110,17 @@ class SlidingWindowReliabilityHandlerTest {
                 handler.getInboundHandler(),
                 handler.getOutboundHandler());
 
-        final InetSocketAddress address = new InetSocketAddress(12);
+        final InetSocketAddress sender = new InetSocketAddress(12);
+        final InetSocketAddress recipient = new InetSocketAddress(13);
         final ByteBuf buf0 = Unpooled.copyBoolean(true);
         final ByteBuf buf1 = Unpooled.copyBoolean(false);
 
         ch.writeOutbound(
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), address), true),
-                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), address), true));
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf1.copy().retain(), recipient, sender), true),
+                ReliabilityDatagramPacket.newInstance(new DatagramPacket(buf0.copy().retain(), recipient, sender), true));
 
         // Read the first 2 packets
         final DatagramPacket read0 = ch.readOutbound();

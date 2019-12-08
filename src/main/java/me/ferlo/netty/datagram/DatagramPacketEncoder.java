@@ -20,7 +20,7 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
 
     // Source: https://stackoverflow.com/a/35697810
     // Not sure how correct it is
-    private static final int SAFE_MAX_PACKET_SIZE = 508;
+    public static final int SAFE_MAX_PACKET_SIZE = 508;
 
     private static final int FRAGMENTED_FLAG = 0x1;
     private static final int LAST_FRAGMENT_FLAG = 0x2;

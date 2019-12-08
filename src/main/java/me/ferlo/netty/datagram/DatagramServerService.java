@@ -1,10 +1,7 @@
 package me.ferlo.netty.datagram;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInboundHandler;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.DatagramChannel;
 import io.netty.channel.socket.nio.NioDatagramChannel;
@@ -63,11 +60,18 @@ public class DatagramServerService implements NetService {
         this.bootstrap = new Bootstrap()
                 .channel(NioDatagramChannel.class)
                 .localAddress(port)
+                .option(ChannelOption.SO_RCVBUF, 16384)
+                .option(ChannelOption.SO_SNDBUF, 16384)
                 .handler(new ChannelInitializer<DatagramChannel>() {
                     @Override
                     protected void initChannel(DatagramChannel ch) throws Exception {
-                        final SlidingWindowReliabilityHandler slidingWindow =
-                                new SlidingWindowReliabilityHandler(0, 10);
+                        final int sendBuffSize = ch.config().getSendBufferSize();
+                        final int packetSize = DatagramPacketEncoder.SAFE_MAX_PACKET_SIZE;
+
+                        final SlidingWindowReliabilityHandler slidingWindow = new SlidingWindowReliabilityHandler(
+                                0,
+                                (int) Math.ceil(sendBuffSize / 4D / packetSize));
+
                         ch.pipeline().addLast(
                                 // ↑
                                 slidingWindow.getOutboundHandler(),

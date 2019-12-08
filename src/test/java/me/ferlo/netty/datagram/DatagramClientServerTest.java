@@ -114,7 +114,7 @@ class DatagramClientServerTest {
             assertEquals(generatedString, s0, "Sent string and received differs (Client -> Server | reliable)");
 
             final String s1 = FutureUtils.getUnchecked(receivedString1, 5000, TimeUnit.MILLISECONDS);
-            assertEquals(generatedString, s1, "Sent string and received differs (Server -> Client | reliable)");
+            assertEquals(generatedString, s1, "Sent string and received differs (Server -> Client | un-reliable)");
 
         } catch (TimeoutException e) {
             fail("Execution took too long and timed out", e);
