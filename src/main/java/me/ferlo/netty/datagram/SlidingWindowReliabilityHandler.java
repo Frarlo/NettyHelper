@@ -243,6 +243,7 @@ public class SlidingWindowReliabilityHandler {
             if(acked == null)
                 return;
             acked.getPromise().setSuccess();
+            acked.getPacket().release();
             acked.recycle();
 
             final SlidingWindowSendDatagram head = toSendDatagrams.poll();
