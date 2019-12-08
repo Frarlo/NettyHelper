@@ -1,7 +1,6 @@
 package me.ferlo.netty.multicast;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.DatagramPacket;
@@ -47,6 +46,7 @@ public class MulticastServerPinger implements NetService {
     private final AtomicBoolean hasStarted = new AtomicBoolean(false);
     private final AtomicBoolean hasStopped = new AtomicBoolean(false);
     private final CompletableFuture<CompletableFuture<Void>> stopFutureFuture = new CompletableFuture<>();
+    private final int shutdownTimeout;
 
     private final String id;
     private final int packetDelay;
@@ -59,7 +59,6 @@ public class MulticastServerPinger implements NetService {
     private final int udpPortToSend;
 
     private final ScheduledExecutorService scheduler;
-    private final int shutdownTimeout;
 
     private EventLoopGroup group;
     private ChannelFuture channelFuture;
@@ -158,7 +157,7 @@ public class MulticastServerPinger implements NetService {
                 .thenRun(() -> {
                     // Schedule ping future
 
-                    final CustomByteBuf payload = CustomByteBuf.get(Unpooled.buffer());
+                    final CustomByteBuf payload = CustomByteBuf.get(channelFuture.channel().alloc().buffer());
                     payload.writeString(id);
                     payload.writeInt(tcpPortToSend);
                     payload.writeInt(udpPortToSend);

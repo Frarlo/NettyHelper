@@ -3,12 +3,9 @@ package me.ferlo.utils;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.concurrent.Promise;
 
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
-public class FutureUtils {
+public final class FutureUtils {
 
     /**
      * Limit scope
@@ -34,6 +31,22 @@ public class FutureUtils {
         try {
             return promise.get();
         } catch (InterruptedException e) {
+            throw SneakyThrow.throwUnchecked(e);
+        }
+    }
+
+    public static <T> T getUnchecked(Future<T> promise) {
+        try {
+            return promise.get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw SneakyThrow.throwUnchecked(e);
+        }
+    }
+
+    public static <T> T getUnchecked(Future<T> promise, long timeout, TimeUnit unit) throws TimeoutException {
+        try {
+            return promise.get(timeout, unit);
+        } catch (InterruptedException | ExecutionException e) {
             throw SneakyThrow.throwUnchecked(e);
         }
     }

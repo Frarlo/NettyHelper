@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
 
-public class MulticastUtils {
+public final class MulticastUtils {
 
     private MulticastUtils() {}
 

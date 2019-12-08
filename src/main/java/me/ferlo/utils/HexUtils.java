@@ -2,7 +2,7 @@ package me.ferlo.utils;
 
 import java.util.StringJoiner;
 
-public class HexUtils {
+public final class HexUtils {
 
     private HexUtils() {}
 

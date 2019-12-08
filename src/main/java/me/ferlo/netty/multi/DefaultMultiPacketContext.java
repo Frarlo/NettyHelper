@@ -4,27 +4,31 @@ import io.netty.channel.ChannelHandlerContext;
 import me.ferlo.netty.core.Packet;
 
 import java.net.SocketAddress;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
-public class DefaultMultiServerPacketContext implements MultiServerPacketContext {
+public class DefaultMultiPacketContext implements MultiPacketContext {
 
     private MultiServerComponent service;
     private Packet packet;
     private ChannelHandlerContext channelHandlerContext;
     private SocketAddress sender;
     private SocketAddress recipient;
+    private Function<? super MultiPacketContext, CompletableFuture<Void>> replyConsumer;
 
-    public DefaultMultiServerPacketContext(MultiServerComponent netComponent,
-                                           Packet packet,
-                                           ChannelHandlerContext channelHandlerContext,
-                                           SocketAddress sender,
-                                           SocketAddress recipient) {
+    public DefaultMultiPacketContext(MultiServerComponent netComponent,
+                                     Packet packet,
+                                     ChannelHandlerContext channelHandlerContext,
+                                     SocketAddress sender,
+                                     SocketAddress recipient,
+                                     Function<? super MultiPacketContext, CompletableFuture<Void>> replyConsumer) {
 
         this.service = netComponent;
         this.packet = packet;
         this.channelHandlerContext = channelHandlerContext;
         this.sender = sender;
         this.recipient = recipient;
+        this.replyConsumer = replyConsumer;
     }
 
     @Override
@@ -35,6 +39,12 @@ public class DefaultMultiServerPacketContext implements MultiServerPacketContext
     @Override
     public Packet getPacket() {
         return packet;
+    }
+
+    @Override
+    public boolean isReliable() {
+        // Reliability is automatically guaranteed by the service in use
+        return false;
     }
 
     @Override
@@ -52,50 +62,27 @@ public class DefaultMultiServerPacketContext implements MultiServerPacketContext
         return recipient;
     }
 
-    public void setService(MultiServerComponent service) {
-        this.service = service;
-    }
-
-    public void setPacket(Packet packet) {
-        this.packet = packet;
-    }
-
-    public void setChannelHandlerContext(ChannelHandlerContext channelHandlerContext) {
-        this.channelHandlerContext = channelHandlerContext;
-    }
-
-    public void setSender(SocketAddress sender) {
-        this.sender = sender;
-    }
-
-    public void setRecipient(SocketAddress recipient) {
-        this.recipient = recipient;
-    }
-
     @Override
-    public Future<Void> reply(Packet packet) {
-        return service.reply(packet, makeReplyContext(packet));
-    }
-
-    @Override
-    public MultiServerPacketContext makeReplyContext(Packet packet) {
-        return new DefaultMultiServerPacketContext(
+    public CompletableFuture<Void> reply(Packet packet) {
+        return replyConsumer.apply(new DefaultMultiPacketContext(
                 service,
                 packet,
                 channelHandlerContext,
                 recipient,
-                sender
-        );
+                sender,
+                replyConsumer
+        ));
     }
 
     @Override
     public String toString() {
-        return "DefaultMultiPacketContext{" +
-                "manager=" + service +
+        return "DefaultMultiServerPacketContext{" +
+                "service=" + service +
                 ", packet=" + packet +
                 ", channelHandlerContext=" + channelHandlerContext +
                 ", sender=" + sender +
                 ", recipient=" + recipient +
+                ", replyConsumer=" + replyConsumer +
                 '}';
     }
 }

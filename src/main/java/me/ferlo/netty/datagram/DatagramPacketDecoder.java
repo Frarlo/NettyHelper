@@ -6,6 +6,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.util.Recycler;
 import me.ferlo.netty.core.Packet;
 import me.ferlo.netty.core.PacketParser;
 import me.ferlo.netty.stream.StreamPacketDecoder;
@@ -28,7 +29,7 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
     private static final int FRAGMENTED_FLAG = 0x1;
     private static final int LAST_FRAGMENT_FLAG = 0x2;
 
-    private static final int DEFAULT_PACKET_MAX_DELAY = 50;
+    private static final int DEFAULT_PACKET_MAX_DELAY = 100;
     private static ScheduledExecutorService DEFAULT_EXECUTOR_SERVICE;
 
     private static ScheduledExecutorService getDefaultExecutorService() {
@@ -79,11 +80,13 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
                 final long currDelay = currentMillis - info.timestamp;
                 final boolean shouldRemove = !info.isParsing && currDelay > this.maxPacketDelay;
 
+                // TODO: what about reliable packets?
                 if(shouldRemove) {
                     LOGGER.debug("Discarded Datagram packet: currDelay {}, maxDelay: {}", currDelay, this.maxPacketDelay);
 
                     for(ByteBuf buf : info.fragments.values())
                         buf.release();
+                    info.recycle();
                 }
                 return shouldRemove;
             });
@@ -122,8 +125,9 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
                         "fragmentId: {}",
                 isLastFragment, packetId, fragmentId);
 
-        final FragmentedPacketInfo info = packetsMap.computeIfAbsent(packetId,
-                key -> new FragmentedPacketInfo(key, System.currentTimeMillis()));
+        final FragmentedPacketInfo info = packetsMap.computeIfAbsent(packetId, FragmentedPacketInfo::newInstance);
+        info.timestamp = System.currentTimeMillis();
+
         final ByteBuf copyBuf = byteBuf.copy();
 
         if(isLastFragment) {
@@ -133,48 +137,71 @@ public class DatagramPacketDecoder extends MessageToMessageDecoder<DatagramPacke
 
         info.fragments.put(fragmentId, copyBuf);
 
-        if((System.currentTimeMillis() - info.timestamp) <= maxPacketDelay&&
-                info.lastFragmentId != 0 &&
-                (info.lastFragmentId + 1) == info.fragments.size()) {
-
+        if(info.lastFragmentId != -1 &&
+                (info.lastFragmentId + 1) == info.fragments.size() &&
+                // If it can possibly being discarded, do not parse it
+                // as it could lead to concurrency issues
+                (System.currentTimeMillis() - info.timestamp) <= maxPacketDelay) {
             info.isParsing = true;
 
             try {
-                final ByteBuf compositeBuf = Unpooled.wrappedBuffer(
-                        info.fragments.values().toArray(new ByteBuf[0]));
+                final ByteBuf[] fragments = info.fragments.values().toArray(new ByteBuf[0]);
+                final ByteBuf compositeBuf = Unpooled.wrappedBuffer(fragments);
 
                 try {
                     LOGGER.debug("Received fragmented packet");
                     return decoder.decode(ctx, compositeBuf);
-
                 } finally {
                     compositeBuf.release();
                 }
             } finally {
-                packetsMap.remove(packetId);
+                final FragmentedPacketInfo removed = packetsMap.remove(packetId);
+                if(removed != null)
+                    removed.recycle();
             }
         }
 
         return null;
     }
 
-    private static final class FragmentedPacketInfo {
+    static final class FragmentedPacketInfo {
 
-        final byte packetId;
-        final SortedMap<Byte, ByteBuf> fragments;
-        final long timestamp;
+        private static final Recycler<FragmentedPacketInfo> RECYCLER = new Recycler<FragmentedPacketInfo>() {
+            @Override
+            protected FragmentedPacketInfo newObject(Handle<FragmentedPacketInfo> handle) {
+                return new FragmentedPacketInfo(handle);
+            }
+        };
+
+        private final Recycler.Handle<FragmentedPacketInfo> handle;
+
+        byte packetId = -1;;
+        SortedMap<Byte, ByteBuf> fragments = new ConcurrentSkipListMap<>();
+        long timestamp = -1;;
 
         ByteBuf lastFragment;
-        byte lastFragmentId;
+        byte lastFragmentId = -1;;
 
         boolean isParsing;
 
-        FragmentedPacketInfo(byte packetId,
-                             long timestamp) {
+        private FragmentedPacketInfo(Recycler.Handle<FragmentedPacketInfo> handle) {
+            this.handle = handle;
+        }
 
-            this.packetId = packetId;
-            this.timestamp = timestamp;
-            this.fragments = new ConcurrentSkipListMap<>();
+        public static FragmentedPacketInfo newInstance(byte packetId) {
+            final FragmentedPacketInfo inst = RECYCLER.get();
+            inst.packetId = packetId;
+            return inst;
+        }
+
+        public void recycle() {
+            packetId = -1;
+            fragments.clear();
+            timestamp = -1;
+            lastFragment = null;
+            lastFragmentId = -1;
+            isParsing = false;
+            handle.recycle(this);
         }
     }
 }

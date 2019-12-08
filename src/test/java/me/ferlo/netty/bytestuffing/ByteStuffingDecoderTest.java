@@ -5,12 +5,28 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ResourceLeakDetector;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.netty.util.ReferenceCountUtil.releaseLater;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ByteStuffingDecoderTest {
+
+    private ResourceLeakDetector.Level previous;
+
+    @BeforeEach
+    void setUp() {
+        previous = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ResourceLeakDetector.setLevel(previous);
+    }
 
     @Test
     @SuppressWarnings("deprecation")
@@ -30,9 +46,8 @@ class ByteStuffingDecoderTest {
         assertEquals("first", releaseLater((ByteBuf) ch.readInbound()).toString(CharsetUtil.US_ASCII));
         assertEquals("second", releaseLater((ByteBuf) ch.readInbound()).toString(CharsetUtil.US_ASCII));
         assertNull(ch.readInbound());
-        ch.finish();
 
-        ReferenceCountUtil.release(ch.readInbound());
+        ch.finish();
     }
 
     @Test
@@ -51,9 +66,12 @@ class ByteStuffingDecoderTest {
                         (char)escape + "" + (char)start + "first" + (char)escape + "" + (char)end +
                         "second" + (char)escape + "" + (char)end,
                 CharsetUtil.US_ASCII)));
+
         ch.finish();
 
-        ReferenceCountUtil.release(ch.readInbound());
+        ByteBuf read;
+        while((read = ch.readInbound()) != null)
+            ReferenceCountUtil.release(read);
     }
 
     @Test
@@ -68,8 +86,11 @@ class ByteStuffingDecoderTest {
                         (char)escape + "" + (char)start + "first" +
                         (char)escape + "" + (char)start + "second" + (char)escape + "" + (char)end,
                 CharsetUtil.US_ASCII)));
+
         ch.finish();
 
-        ReferenceCountUtil.release(ch.readInbound());
+        ByteBuf read;
+        while((read = ch.readInbound()) != null)
+            ReferenceCountUtil.release(read);
     }
 }

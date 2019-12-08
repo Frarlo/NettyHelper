@@ -1,6 +1,9 @@
 package me.ferlo.netty.multicast;
 
+import io.netty.util.ResourceLeakDetector;
 import me.ferlo.utils.FutureUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
@@ -12,6 +15,19 @@ public class MulticastDiscoveringTest {
 
     // Should be a multicast local address
     public static final InetSocketAddress MULTICAST_LOCAL_ADDRESS = new InetSocketAddress("239.255.43.42", 44337);
+
+    private ResourceLeakDetector.Level previous;
+
+    @BeforeEach
+    void setUp() {
+        previous = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ResourceLeakDetector.setLevel(previous);
+    }
 
     @Test
     void testDiscovering() throws ExecutionException, InterruptedException {

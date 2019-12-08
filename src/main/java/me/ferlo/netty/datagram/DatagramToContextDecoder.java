@@ -1,4 +1,4 @@
-package me.ferlo.netty.multi;
+package me.ferlo.netty.datagram;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
@@ -6,21 +6,20 @@ import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import me.ferlo.netty.core.Packet;
 import me.ferlo.netty.core.PacketParser;
-import me.ferlo.netty.datagram.DatagramPacketDecoder;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
-public class UdpPacketToContextDecoder extends MessageToMessageDecoder<DatagramPacket> {
+public class DatagramToContextDecoder extends MessageToMessageDecoder<DatagramPacket> {
 
-    private final MultiServerComponent netService;
     private final DatagramPacketDecoder decoder;
+    private final Function<DatagramPacketContext, CompletableFuture<Void>> replyConsumer;
 
-    public UdpPacketToContextDecoder(MultiServerComponent netService,
-                                     Function<Byte, PacketParser> idToParser) {
-
-        this.netService = netService;
+    public DatagramToContextDecoder(Function<Byte, PacketParser> idToParser,
+                                    Function<DatagramPacketContext, CompletableFuture<Void>> replyConsumer) {
         this.decoder = new DatagramPacketDecoder(idToParser);
+        this.replyConsumer = replyConsumer;
     }
 
     @Override
@@ -30,12 +29,11 @@ public class UdpPacketToContextDecoder extends MessageToMessageDecoder<DatagramP
 
         final Packet packet = decoder.decode(ctx, msg);
         if(packet != null)
-            out.add(new DefaultMultiServerPacketContext(
-                    netService,
+            out.add(DefaultDatagramPacketContext.newInstance(
                     packet,
-                    ctx,
                     msg.sender(),
-                    msg.recipient()
+                    msg.recipient(),
+                    replyConsumer
             ));
     }
 }

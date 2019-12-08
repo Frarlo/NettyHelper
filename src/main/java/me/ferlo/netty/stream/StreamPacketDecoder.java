@@ -1,7 +1,6 @@
 package me.ferlo.netty.stream;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.DecoderException;
@@ -19,7 +18,6 @@ import java.util.function.Function;
  *
  * @author Ferlo
  */
-@ChannelHandler.Sharable
 public class StreamPacketDecoder extends ByteToMessageDecoder {
 
     // Constants

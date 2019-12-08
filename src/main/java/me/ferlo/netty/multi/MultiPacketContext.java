@@ -6,9 +6,9 @@ import me.ferlo.netty.datagram.DatagramPacketContext;
 import me.ferlo.netty.stream.StreamPacketContext;
 
 import java.net.SocketAddress;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 
-public interface MultiServerPacketContext extends StreamPacketContext, DatagramPacketContext {
+public interface MultiPacketContext extends StreamPacketContext, DatagramPacketContext {
 
     MultiServerComponent getService();
 
@@ -18,7 +18,11 @@ public interface MultiServerPacketContext extends StreamPacketContext, DatagramP
 
     SocketAddress getRecipient();
 
-    Future<Void> reply(Packet packet);
+    CompletableFuture<Void> reply(Packet packet);
 
-    MultiServerPacketContext makeReplyContext(Packet packet);
+    @Override
+    @Deprecated
+    default CompletableFuture<Void> reply(Packet packet, boolean reliable) {
+        return reply(packet);
+    }
 }

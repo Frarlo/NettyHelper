@@ -214,7 +214,14 @@ public class ByteStuffingDecoder extends ByteToMessageDecoder {
         } else {
             frame.writeByte(b);
         }
+    }
 
+    @Override
+    protected void handlerRemoved0(ChannelHandlerContext ctx) {
+        if(frame != null)
+            frame.release();
+        resetFrame();
+        isEscaped = false;
     }
 
     /**
@@ -223,5 +230,6 @@ public class ByteStuffingDecoder extends ByteToMessageDecoder {
     private void resetFrame() {
         isReadingFrame = false;
         frame = null;
+        frameLength = 0;
     }
 }

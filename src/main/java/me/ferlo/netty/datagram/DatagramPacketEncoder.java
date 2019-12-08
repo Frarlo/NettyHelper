@@ -46,7 +46,7 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
                           DatagramPacketContext msg,
                           List<Object> out) throws EncoderException {
 
-        final ByteBuf bytes = Unpooled.buffer();
+        final ByteBuf bytes = ctx.alloc().buffer();
 
         bytes.writeByte(0x0); // Set it as not fragmented
         encoder.writePacket(msg.getPacket(), bytes);
@@ -56,7 +56,7 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
 
         final int currentPacketSize = bytes.readableBytes();
         if(currentPacketSize <= packetSize - 1) {
-            out.add(new DatagramPacket(bytes, (InetSocketAddress) msg.getRecipient()));
+            out.add(newDatagram(msg, bytes, (InetSocketAddress) msg.getRecipient()));
 
         } else {
 
@@ -79,7 +79,7 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
             int remainingPacketSize = currentPacketSize;
             while(remainingPacketSize > actualPacketSize) {
 
-                final ByteBuf flagsBuf = Unpooled.buffer(3, 3);
+                final ByteBuf flagsBuf = ctx.alloc().buffer(3, 3);
                 flagsBuf.writeByte(flags);
                 flagsBuf.writeByte(packedId);
                 flagsBuf.writeByte(fragmentId++);
@@ -87,7 +87,7 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
                 final ByteBuf slice = bytes.retainedSlice(bytes.readerIndex(), actualPacketSize);
                 final ByteBuf compositeBuf = Unpooled.wrappedBuffer(flagsBuf, slice);
 
-                out.add(new DatagramPacket(compositeBuf, recipient));
+                out.add(newDatagram(msg, compositeBuf, recipient));
 
                 bytes.readerIndex(bytes.readerIndex() + actualPacketSize);
                 remainingPacketSize -= actualPacketSize;
@@ -95,14 +95,17 @@ public class DatagramPacketEncoder extends MessageToMessageEncoder<DatagramPacke
 
             flags |= LAST_FRAGMENT_FLAG; // Set the packet as last fragment
 
-            final ByteBuf flagsBuf = Unpooled.buffer(3, 3);
+            final ByteBuf flagsBuf = ctx.alloc().buffer(3, 3);
             flagsBuf.writeByte(flags);
             flagsBuf.writeByte(packedId);
             flagsBuf.writeByte(fragmentId);
 
             final ByteBuf compositeBuf = Unpooled.wrappedBuffer(flagsBuf, bytes);
-            out.add(new DatagramPacket(compositeBuf, recipient));
+            out.add(newDatagram(msg, compositeBuf, recipient));
         }
+    }
 
+    protected Object newDatagram(DatagramPacketContext ctx, ByteBuf data, InetSocketAddress recipient) {
+        return ReliabilityDatagramPacket.newInstance(new DatagramPacket(data, recipient), ctx.isReliable());
     }
 }

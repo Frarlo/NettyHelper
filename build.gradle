@@ -18,7 +18,8 @@ dependencies {
     // Logging
 
     compile 'org.slf4j:slf4j-api:1.7.25'
-    testRuntimeOnly 'org.slf4j:slf4j-nop:1.7.28'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.12.1'
+//    testRuntimeOnly 'org.slf4j:slf4j-nop:1.7.28'
     
     // JUnit
 

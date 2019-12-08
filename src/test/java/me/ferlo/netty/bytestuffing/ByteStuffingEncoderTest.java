@@ -5,12 +5,28 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ResourceLeakDetector;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.netty.util.ReferenceCountUtil.releaseLater;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ByteStuffingEncoderTest {
+
+    private ResourceLeakDetector.Level previous;
+
+    @BeforeEach
+    void setUp() {
+        previous = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ResourceLeakDetector.setLevel(previous);
+    }
 
     @Test
     @SuppressWarnings("deprecation")
